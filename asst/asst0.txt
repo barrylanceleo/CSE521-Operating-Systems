@@ -1,0 +1,96 @@
+1. What function initializes the kernel during boot, and what subsystems are currently initialized?
+	The void boot(void) function in the ~/src/kern/main/main.c file initializes the kernel during the boot. 
+	Subsystems initialized:
+	/* Early initialization. */
+	ram_bootstrap();
+	proc_bootstrap();
+	thread_bootstrap();
+	hardclock_bootstrap();
+	vfs_bootstrap();
+	kheap_nextgeneration();
+
+	/* Probe and initialize devices. Interrupts should come on. */
+	kprintf("Device probe...\n");
+	KASSERT(curthread->t_curspl > 0);
+	mainbus_bootstrap();
+	KASSERT(curthread->t_curspl == 0);
+	/* Now do pseudo-devices. */
+	pseudoconfig();
+	kprintf("\n");
+	kheap_nextgeneration();
+
+	/* Late phase of initialization. */
+	vm_bootstrap();
+	kprintf_bootstrap();
+	thread_start_cpus();
+
+	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
+	vfs_setbootfs("emu0");
+	kheap_nextgeneration();
+
+2. What VM system does your kernel use by default? What is wrong with it?
+	Our kernel uses dumbvm by default. The problem is that it does nothing.
+	void vm_bootstrap(void){ /* Do nothing. */ }
+
+3. OS/161 ships with two working synchronization primitives. What are they?
+	Dijkstra-style semaphore and Simple lock for mutual exclusion.
+
+4. How do you create a thread in OS/161? Give some examples of code that currently creates multiple threads.
+	Threads are created using the function,
+	struct thread * thread_create(const char *name)
+	
+	thread_create is called by thread_fork() which is in turn using to create threads as follows,
+
+	barry@Barry-PC:~/os161/src$ grep -nr "thread_fork" .
+	....
+	./kern/test/automationtest.c:97:	result = thread_fork("dltest", NULL, dltestthread, NULL, (unsigned long)0);
+	....
+	./kern/test/tt3.c:150:		result = thread_fork(name, NULL, sleepalot_thread, NULL, i);
+	....
+	./kern/test/semunit.c:118:	result = thread_fork("semunit waiter", NULL, waiter, sem, 0);
+	....
+	./kern/test/fstest.c:329:		err = thread_fork("readstress", NULL,
+
+5. OS/161 has a system for printing debugging messages to the console. How does it work? How could it be useful?
+
+	kprintf(const char *fmt, ...)
+
+6.What do copyin and copyout do? Why is special about these functions compared to other approaches to copying memory in C, like memmove?
+
+	* copyin copies LEN bytes from a user-space address USERSRC to a
+	* kernel-space address DEST.
+	*
+	* copyout copies LEN bytes from a kernel-space address SRC to a
+	* user-space address USERDEST.
+
+	memmove is for copy memory between userspace, copyin/copyout transfer data between user and kernel address space.	
+
+7. What is a zombie thread?
+
+	* Clean up zombies. (Zombies are threads that have exited but still
+	* need to have thread_destroy called on them.)
+
+8. What is the difference between a thread sleeping and a thread yielding?
+
+	thread sleeping: sleep and switch thread
+	thread yielding: switch thread only
+
+9. Explain the difference between machine dependent and machine independent code. Where would you put both in the OS/161 source tree?
+
+	machine dependent code goes into ~/src/kern/arch/
+	machine independent code goes into ~/src/kern/	
+
+10. What functions are used to enable and restore interrupts? Would this be sufficient to ensure mutual exclusion on an OS/161 kernel?
+
+	/*
+	* Disable or enable interrupts and adjust curspl setting. Return old
+	* spl level.
+	*/
+	int
+	splx(int spl)
+
+	in file ~/src/kern/thread/spl.c
+
+
+
+
