@@ -205,6 +205,14 @@ lock_release(struct lock *lock)
     KASSERT(lock != NULL);
 
     spinlock_acquire(&lock->lk_lock);
+
+    if(!lock_do_i_hold(lock))
+    {
+        spinlock_release(&lock->lk_lock);
+        panic("Trying to release a lock held by another thread.\n");
+        return;
+    }
+
     if(lock->lk_thread == NULL) {
         spinlock_release(&lock->lk_lock);
         panic("Trying to release an unlocked lock.\n");
@@ -253,7 +261,6 @@ cv_create(const char *name)
         kfree(cv);
         return NULL;
     }
-	// add stuff here as needed
 
 	return cv;
 }
@@ -262,8 +269,6 @@ void
 cv_destroy(struct cv *cv)
 {
 	KASSERT(cv != NULL);
-
-	// add stuff here as needed
 
     wchan_destroy(cv->cv_wchan);
     spinlock_cleanup(&cv->cv_lock);
