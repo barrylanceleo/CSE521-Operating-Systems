@@ -301,12 +301,16 @@ whalemating(int nargs, char **args) {
 			}
 		}
 	}
-	
+
+	kprintf("Fininshed starting male and female from synchprobs.c\n");
+
+
 	/* Wait for males and females to start. */
 	for (i = 0; i < NMATING * 2; i++) {
 		kprintf_t(".");
 		P(startsem);
 	}
+
 
 	/* Make sure nothing is happening... */
 	loop_status = SUCCESS;
@@ -323,6 +327,8 @@ whalemating(int nargs, char **args) {
 	if (failif((loop_status == FAIL), "failed: uncoordinated matchmaking is occurring")) {
 		goto done;
 	}
+
+	kprintf("Starting matchmaker from synchprobs.c\n");
 
 	/* Create the matchmakers */
 	for (j = 0; j < NMATING; j++) {

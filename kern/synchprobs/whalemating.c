@@ -40,12 +40,38 @@
 #include <test.h>
 #include <synch.h>
 
+static struct semaphore *male_sem;
+static struct semaphore *female_sem;
+static struct cv *male_cv;
+static struct cv *female_cv;
+static struct lock *cv_lock;
+
 /*
  * Called by the driver during initialization.
  */
 
 void whalemating_init() {
-	return;
+
+    kprintf("in whalemating_init\n");
+    cv_lock = lock_create("cv_lock");
+
+    if(cv_lock == NULL) {
+        panic("Unable to create lock");
+        return;
+    }
+
+	male_sem = sem_create("male_sem", 0);
+    female_sem = sem_create("female_sem", 0);
+
+    male_cv = cv_create("male_cv");
+    female_cv = cv_create("female_cv");
+
+    if(male_sem == NULL || female_sem == NULL || male_cv == NULL || female_cv == NULL) {
+        panic("Unable to create 1 or more semaphores");
+        return;
+    }
+
+    return;
 }
 
 /*
@@ -54,38 +80,67 @@ void whalemating_init() {
 
 void
 whalemating_cleanup() {
-	return;
+
+
+    sem_destroy(male_sem);
+    sem_destroy(female_sem);
+    cv_destroy(male_cv);
+    cv_destroy(female_cv);
+    lock_destroy(cv_lock);
+
+    return;
 }
 
 void
 male(uint32_t index)
 {
-	(void)index;
-	/*
-	 * Implement this function by calling male_start and male_end when
-	 * appropriate.
-	 */
+    male_start(index); // we got a female and match maker, lets start YO!
+    //kprintf("in male %u\n", index);
+    V(male_sem); // notify female and match makers
+
+    lock_acquire(cv_lock);
+    cv_wait(male_cv, cv_lock); //wait till called by match maker
+    lock_release(cv_lock);
+
+
+    male_end(index); //done
+
 	return;
 }
 
 void
 female(uint32_t index)
 {
-	(void)index;
-	/*
-	 * Implement this function by calling female_start and female_end when
-	 * appropriate.
-	 */
+    female_start(index); // we got a male and match maker, lets start YO!
+    //kprintf("in female %u\n", index);
+
+    V(female_sem); // notify male and match makers
+
+    lock_acquire(cv_lock);
+    cv_wait(female_cv, cv_lock); //wait till called by match maker
+    lock_release(cv_lock);
+
+
+    female_end(index); //done
 	return;
 }
 
 void
 matchmaker(uint32_t index)
 {
-	(void)index;
-	/*
-	 * Implement this function by calling matchmaker_start and matchmaker_end
-	 * when appropriate.
-	 */
+    matchmaker_start(index);
+    //kprintf("in matchmaker %u\n", index);
+
+    P(female_sem); // wait for a female
+    P(male_sem); // wait for a match maker
+
+    lock_acquire(cv_lock);
+    cv_signal(male_cv, cv_lock); // wake up a make
+    cv_signal(female_cv, cv_lock); // wake up a female
+    lock_release(cv_lock);
+
+
+    matchmaker_end(index);
+
 	return;
 }

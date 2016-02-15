@@ -312,3 +312,105 @@ cv_broadcast(struct cv *cv, struct lock *lock)
     wchan_wakeall(cv->cv_wchan, &cv->cv_lock);
     spinlock_release(&cv->cv_lock);
 }
+
+struct rwlock * rwlock_create(const char *name)
+{
+    struct rwlock *rwlock;
+
+    rwlock = kmalloc(sizeof(*rwlock));
+    if (rwlock == NULL) {
+        return NULL;
+    }
+
+    rwlock->rwlock_name = kstrdup(name);
+    if (rwlock->rwlock_name==NULL) {
+        kfree(rwlock);
+        return NULL;
+    }
+
+    rwlock->read_count = 0;
+    int sem_name_size = strlen(name);
+    char *sem_name_build = kmalloc(sem_name_size+4);
+
+    sem_name_build[sem_name_size] = 'r';
+    sem_name_build[sem_name_size + 1] = 's';
+    sem_name_build[sem_name_size + 2] = '\0';
+    rwlock->resource_sem = sem_create(sem_name_build, 0);
+
+    sem_name_build[sem_name_size] = 'r';
+    sem_name_build[sem_name_size + 1] = 'c';
+    sem_name_build[sem_name_size + 2] = 's';
+    sem_name_build[sem_name_size + 3] = '\0';
+    rwlock->read_count_sem = sem_create(sem_name_build, 0);
+
+    sem_name_build[sem_name_size] = 'q';
+    sem_name_build[sem_name_size + 1] = 's';
+    sem_name_build[sem_name_size + 2] = '\0';
+    rwlock->queue_sem = sem_create(sem_name_build, 0);
+
+    kfree(sem_name_build);
+
+    return rwlock;
+
+}
+
+void rwlock_destroy(struct rwlock * rwlock)
+{
+    KASSERT(rwlock != NULL);
+
+    sem_destroy(rwlock->resource_sem);
+    sem_destroy(rwlock->read_count_sem);
+    sem_destroy(rwlock->queue_sem);
+
+    kfree(rwlock->rwlock_name);
+    kfree(rwlock);
+
+}
+
+void rwlock_acquire_read(struct rwlock *rwlock)
+{
+
+    P(rwlock->queue_sem);
+
+    P(rwlock->read_count_sem);
+    if(rwlock->read_count == 0)
+    {
+        P(rwlock->resource_sem);
+    }
+    rwlock->read_count++;
+    V(rwlock->read_count_sem);
+
+}
+
+
+
+void rwlock_release_read(struct rwlock *rwlock)
+{
+
+    P(rwlock->read_count_sem);
+    rwlock->read_count--;
+    if(rwlock->read_count == 0)
+    {
+        V(rwlock->resource_sem);
+    }
+    V(rwlock->read_count_sem);
+
+}
+
+void rwlock_acquire_write(struct rwlock *rwlock)
+{
+    P(rwlock->queue_sem);
+
+    P(rwlock->resource_sem);
+
+    V(rwlock->queue_sem);
+
+
+}
+void rwlock_release_write(struct rwlock *rwlock)
+{
+
+    V(rwlock->resource_sem);
+
+}
+

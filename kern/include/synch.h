@@ -157,6 +157,11 @@ void cv_broadcast(struct cv *cv, struct lock *lock);
 
 struct rwlock {
         char *rwlock_name;
+		unsigned int read_count;
+		struct semaphore *resource_sem;
+		struct semaphore *read_count_sem;
+		struct semaphore *queue_sem;
+
         // add what you need here
         // (don't forget to mark things volatile as needed)
 };
