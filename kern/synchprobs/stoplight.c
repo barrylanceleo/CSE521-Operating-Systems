@@ -73,8 +73,24 @@
  * Called by the driver during initialization.
  */
 
+static struct lock** locks;
+
+#define INTERSECTION_LOCK_COUNT 4
+#define LEFT_FIRST(dir) (dir == 2 ? 2 : 3)
+#define LEFT_SECOND(dir) (dir == 0 || dir == 3 ? 2 : 1)
+#define LEFT_THIRD(dir) (dir == 3 ? 1 : 0)
+#define STRAIGHT_FIRST(dir) (dir == 0 ? 3 : dir)
+#define STRAIGHT_SECOND(dir) (dir == 0 ? 0 : dir - 1)
+
+#define PREV_DIR(dir) (dir == 0 ? INTERSECTION_LOCK_COUNT - 1 : dir - 1)
+
 void
 stoplight_init() {
+	locks = kmalloc(sizeof(struct lock*)*INTERSECTION_LOCK_COUNT);
+	int i;
+	for(i = 0;i < INTERSECTION_LOCK_COUNT; i++) {
+		locks[i] = lock_create("Blah");
+	}
 	return;
 }
 
@@ -83,36 +99,47 @@ stoplight_init() {
  */
 
 void stoplight_cleanup() {
+	int i;
+	for(i = 0;i < INTERSECTION_LOCK_COUNT; i++) {
+		lock_destroy(locks[i]);
+	}
+	kfree(locks);
 	return;
 }
 
 void
 turnright(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
+	lock_acquire(locks[direction]);
+	inQuadrant(direction, index);
+	leaveIntersection(index);
+	lock_release(locks[direction]);
 	return;
 }
 void
 gostraight(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
+	lock_acquire(locks[STRAIGHT_FIRST(direction)]);
+	lock_acquire(locks[STRAIGHT_SECOND(direction)]);
+	inQuadrant((direction), index);
+	inQuadrant(PREV_DIR(direction), index);
+	leaveIntersection(index);
+	lock_release(locks[STRAIGHT_SECOND(direction)]);
+	lock_release(locks[STRAIGHT_FIRST(direction)]);
 	return;
 }
 void
 turnleft(uint32_t direction, uint32_t index)
 {
-	(void)direction;
-	(void)index;
-	/*
-	 * Implement this function.
-	 */
+	lock_acquire(locks[LEFT_FIRST(direction)]);
+	lock_acquire(locks[LEFT_SECOND(direction)]);
+	lock_acquire(locks[LEFT_THIRD(direction)]);
+	inQuadrant((direction), index);
+	inQuadrant(PREV_DIR(direction), index);
+	inQuadrant(PREV_DIR(PREV_DIR(direction)), index);
+	leaveIntersection(index);
+	lock_release(locks[LEFT_THIRD(direction)]);
+	lock_release(locks[LEFT_SECOND(direction)]);
+	lock_release(locks[LEFT_FIRST(direction)]);
 	return;
 }
