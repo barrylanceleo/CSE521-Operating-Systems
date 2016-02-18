@@ -12,31 +12,56 @@
 #include <kern/secret.h>
 #include <spinlock.h>
 
-#define NTHREADS 20
+/*
+ * Use these stubs to test your reader-writer locks.
+ */
 
 int rwtest(int nargs, char **args) {
-	(void)nargs;
-	(void)args;
+    (void)nargs;
+    (void)args;
 
-	int i;
-	for (i=0; i<NTHREADS; i++) {
-		kprintf_t(".");
-		result = thread_fork("readertest", NULL, readertestthread, NULL, i);
-		if (result) {
-			panic("lt1: thread_fork failed: %s\n", strerror(result));
-		}
-	}
+    kprintf_n("rwt1 unimplemented\n");
+    success(FAIL, SECRET, "rwt1");
 
-	kprintf_n("rwt1 unimplemented\n");
-	success(FAIL, SECRET, "rwt1");
-
-	return 0;
+    return 0;
 }
 
-void readertestthread() {
-	//readSomeStuff;
+int rwtest2(int nargs, char **args) {
+    (void)nargs;
+    (void)args;
+
+    kprintf_n("rwt2 unimplemented\n");
+    success(FAIL, SECRET, "rwt2");
+
+    return 0;
 }
 
-void writertestthread() {
-	//writeSomeStuff;
+int rwtest3(int nargs, char **args) {
+    (void)nargs;
+    (void)args;
+
+    kprintf_n("rwt3 unimplemented\n");
+    success(FAIL, SECRET, "rwt3");
+
+    return 0;
+}
+
+int rwtest4(int nargs, char **args) {
+    (void)nargs;
+    (void)args;
+
+    kprintf_n("rwt4 unimplemented\n");
+    success(FAIL, SECRET, "rwt4");
+
+    return 0;
+}
+
+int rwtest5(int nargs, char **args) {
+    (void)nargs;
+    (void)args;
+
+    kprintf_n("rwt5 unimplemented\n");
+    success(FAIL, SECRET, "rwt5");
+
+    return 0;
 }
