@@ -335,18 +335,18 @@ struct rwlock * rwlock_create(const char *name)
     sem_name_build[sem_name_size] = 'r';
     sem_name_build[sem_name_size + 1] = 's';
     sem_name_build[sem_name_size + 2] = '\0';
-    rwlock->resource_sem = sem_create(sem_name_build, 0);
+    rwlock->resource_sem = sem_create(sem_name_build, 1);
 
     sem_name_build[sem_name_size] = 'r';
     sem_name_build[sem_name_size + 1] = 'c';
     sem_name_build[sem_name_size + 2] = 's';
     sem_name_build[sem_name_size + 3] = '\0';
-    rwlock->read_count_sem = sem_create(sem_name_build, 0);
+    rwlock->read_count_sem = sem_create(sem_name_build, 1);
 
     sem_name_build[sem_name_size] = 'q';
     sem_name_build[sem_name_size + 1] = 's';
     sem_name_build[sem_name_size + 2] = '\0';
-    rwlock->queue_sem = sem_create(sem_name_build, 0);
+    rwlock->queue_sem = sem_create(sem_name_build, 1);
 
     kfree(sem_name_build);
 
@@ -378,6 +378,7 @@ void rwlock_acquire_read(struct rwlock *rwlock)
         P(rwlock->resource_sem);
     }
     rwlock->read_count++;
+    V(rwlock->queue_sem);
     V(rwlock->read_count_sem);
 
 }
