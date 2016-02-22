@@ -160,7 +160,6 @@ int rwtest(int nargs, char **args) {
     for (i=0; i<CREATELOOPS; i++) {
         kprintf_t(".");
         rw_test_lock = rwlock_create("testlock");
-        kprintf("Created read_write_lock\n");
 
         if (rw_test_lock == NULL) {
             panic("rwtest: rwlock_create failed\n");
@@ -202,7 +201,7 @@ int rwtest(int nargs, char **args) {
     donesem = NULL;
 
     kprintf_t("\n");
-    success(test_status, SECRET, "rwtest");
+    success(test_status, SECRET, "rwt1");
 
     return 0;
 }

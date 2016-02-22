@@ -119,27 +119,61 @@ turnright(uint32_t direction, uint32_t index)
 void
 gostraight(uint32_t direction, uint32_t index)
 {
+	bool first = false;
+
 	lock_acquire(locks[STRAIGHT_FIRST(direction)]);
+	if(STRAIGHT_FIRST(direction) == direction)
+	{
+		inQuadrant((direction), index);
+		first = true;
+	}
 	lock_acquire(locks[STRAIGHT_SECOND(direction)]);
-	inQuadrant((direction), index);
+	if(first == false)
+	{
+		inQuadrant((direction), index);
+	}
 	inQuadrant(PREV_DIR(direction), index);
+	lock_release(locks[direction]);
 	leaveIntersection(index);
-	lock_release(locks[STRAIGHT_SECOND(direction)]);
-	lock_release(locks[STRAIGHT_FIRST(direction)]);
+	lock_release(locks[PREV_DIR(direction)]);
 	return;
 }
 void
 turnleft(uint32_t direction, uint32_t index)
 {
+	bool first = false, second = false;
+
 	lock_acquire(locks[LEFT_FIRST(direction)]);
+	if(LEFT_FIRST(direction) == direction)
+	{
+		inQuadrant((direction), index);
+		first = true;
+	}
+
 	lock_acquire(locks[LEFT_SECOND(direction)]);
+	if(LEFT_SECOND(direction) == PREV_DIR(direction) && first == true )
+	{
+		inQuadrant(PREV_DIR(direction), index);
+		lock_release(locks[direction]);
+		second = true;
+	}
+
 	lock_acquire(locks[LEFT_THIRD(direction)]);
-	inQuadrant((direction), index);
-	inQuadrant(PREV_DIR(direction), index);
+
+	if(first == false)
+	{
+		inQuadrant(direction, index);
+	}
+
+	if(second == false)
+	{
+		inQuadrant(PREV_DIR(direction), index);
+		lock_release(locks[direction]);
+	}
+
 	inQuadrant(PREV_DIR(PREV_DIR(direction)), index);
+	lock_release(locks[PREV_DIR(direction)]);
 	leaveIntersection(index);
-	lock_release(locks[LEFT_THIRD(direction)]);
-	lock_release(locks[LEFT_SECOND(direction)]);
-	lock_release(locks[LEFT_FIRST(direction)]);
+	lock_release(locks[PREV_DIR(PREV_DIR(direction))]);
 	return;
 }
