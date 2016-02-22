@@ -158,8 +158,10 @@ void cv_broadcast(struct cv *cv, struct lock *lock);
 struct rwlock {
         char *rwlock_name;
 		unsigned int read_count;
+		bool is_write_locked;
 		struct semaphore *resource_sem;
 		struct semaphore *read_count_sem;
+		struct semaphore *write_lock_sem;
 		struct semaphore *queue_sem;
 
         // add what you need here

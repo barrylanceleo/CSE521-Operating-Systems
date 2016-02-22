@@ -343,6 +343,12 @@ struct rwlock * rwlock_create(const char *name)
     sem_name_build[sem_name_size + 3] = '\0';
     rwlock->read_count_sem = sem_create(sem_name_build, 1);
 
+    sem_name_build[sem_name_size] = 'w';
+    sem_name_build[sem_name_size + 1] = 'l';
+    sem_name_build[sem_name_size + 2] = 's';
+    sem_name_build[sem_name_size + 3] = '\0';
+    rwlock->write_lock_sem = sem_create(sem_name_build, 1);
+
     sem_name_build[sem_name_size] = 'q';
     sem_name_build[sem_name_size + 1] = 's';
     sem_name_build[sem_name_size + 2] = '\0';
@@ -360,6 +366,7 @@ void rwlock_destroy(struct rwlock * rwlock)
 
     sem_destroy(rwlock->resource_sem);
     sem_destroy(rwlock->read_count_sem);
+    sem_destroy(rwlock->write_lock_sem);
     sem_destroy(rwlock->queue_sem);
 
     kfree(rwlock->rwlock_name);
@@ -383,12 +390,15 @@ void rwlock_acquire_read(struct rwlock *rwlock)
 
 }
 
-
-
 void rwlock_release_read(struct rwlock *rwlock)
 {
 
     P(rwlock->read_count_sem);
+
+    //panic if the reader count is about to go below zero
+    if(rwlock->read_count == 0)
+        panic("rwt1: reader count < 0\n");
+
     rwlock->read_count--;
     if(rwlock->read_count == 0)
     {
@@ -400,9 +410,16 @@ void rwlock_release_read(struct rwlock *rwlock)
 
 void rwlock_acquire_write(struct rwlock *rwlock)
 {
+
     P(rwlock->queue_sem);
 
     P(rwlock->resource_sem);
+
+    P(rwlock->write_lock_sem);
+
+    rwlock->is_write_locked = true;
+
+    V(rwlock->write_lock_sem);
 
     V(rwlock->queue_sem);
 
@@ -410,6 +427,15 @@ void rwlock_acquire_write(struct rwlock *rwlock)
 }
 void rwlock_release_write(struct rwlock *rwlock)
 {
+    P(rwlock->write_lock_sem);
+
+    //panic if write is not locked
+    if(rwlock->is_write_locked == false)
+        panic("rwt1: trying to release write lock when there is no write lock\n");
+
+    rwlock->is_write_locked = false;
+
+    V(rwlock->write_lock_sem);
 
     V(rwlock->resource_sem);
 
