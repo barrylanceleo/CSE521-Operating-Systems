@@ -139,7 +139,6 @@ matchmaker(uint32_t index)
     cv_signal(female_cv, cv_lock); // wake up a female
     lock_release(cv_lock);
 
-
     matchmaker_end(index);
 
 	return;

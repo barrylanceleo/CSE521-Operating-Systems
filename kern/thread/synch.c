@@ -364,6 +364,10 @@ void rwlock_destroy(struct rwlock * rwlock)
 {
     KASSERT(rwlock != NULL);
 
+    // TODO: panic if rwlock is destroyed while holding a read or write lock
+//    if(rwlock->read_count != 0 || rwlock->is_write_locked == true)
+//        panic("rwlock: Trying to destroy rwlock while some thread is holding read or write lock on it");
+
     sem_destroy(rwlock->resource_sem);
     sem_destroy(rwlock->read_count_sem);
     sem_destroy(rwlock->write_lock_sem);
@@ -397,7 +401,7 @@ void rwlock_release_read(struct rwlock *rwlock)
 
     //panic if the reader count is about to go below zero
     if(rwlock->read_count == 0)
-        panic("rwt1: reader count < 0\n");
+        panic("rwlock: Trying to release read lock when no thread is holding a read lock\n");
 
     rwlock->read_count--;
     if(rwlock->read_count == 0)
@@ -431,7 +435,7 @@ void rwlock_release_write(struct rwlock *rwlock)
 
     //panic if write is not locked
     if(rwlock->is_write_locked == false)
-        panic("rwt1: trying to release write lock when there is no write lock\n");
+        panic("rwlock: Trying to release write lock when no thread is holding a write lock\n");
 
     rwlock->is_write_locked = false;
 
