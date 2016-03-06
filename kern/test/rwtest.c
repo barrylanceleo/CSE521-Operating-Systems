@@ -23,6 +23,8 @@
 #define NLOCKLOOPS    120
 #define NTHREADS      32
 #define SYNCHTEST_YIELDER_MAX 16
+#define SUCCESS 0
+#define FAIL 1
 
 static volatile unsigned long testval1;
 static volatile unsigned long testval2;
@@ -309,7 +311,7 @@ int rwtest3(int nargs, char **args) {
         panic("rwt3: rwlock_create failed\n");
     }
 
-    ksecprintf(SECRET, "Should panic...", "rwt3");
+    //ksecprintf(SECRET, "Should panic...", "rwt3");
 
     rwlock_acquire_read(test_rwlock);
     rwlock_release_read(test_rwlock);
@@ -338,7 +340,7 @@ int rwtest4(int nargs, char **args) {
         panic("rwt3: rwlock_create failed\n");
     }
 
-    ksecprintf(SECRET, "Should panic...", "rwt4");
+    // ksecprintf(SECRET, "Should panic...", "rwt4");
 
     rwlock_acquire_read(test_rwlock);
     rwlock_acquire_read(test_rwlock);
@@ -373,7 +375,7 @@ int rwtest5(int nargs, char **args) {
         panic("rwt3: rwlock_create failed\n");
     }
 
-    ksecprintf(SECRET, "Should panic...", "rwt5");
+    // ksecprintf(SECRET, "Should panic...", "rwt5");
 
     rwlock_acquire_read(test_rwlock);
     rwlock_release_write(test_rwlock);

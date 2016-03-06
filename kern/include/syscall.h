@@ -1,4 +1,4 @@
-/*
+	/*
  * Copyright (c) 2000, 2001, 2002, 2003, 2004, 2005, 2008, 2009
  *	The President and Fellows of Harvard College.
  *
@@ -58,5 +58,14 @@ __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
 
 int sys_reboot(int code);
 int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
+
+
+// file system calls
+
+int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode, int32_t* retval);
+int sys_read(userptr_t fd, userptr_t user_buf_ptr, userptr_t buflen, int32_t* retval);
+int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes, int32_t* retval);
+int sys_close(userptr_t fd);
+int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval);
 
 #endif /* _SYSCALL_H_ */
