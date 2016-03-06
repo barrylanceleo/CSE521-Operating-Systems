@@ -31,6 +31,7 @@
 #define _VNODE_H_
 
 #include <spinlock.h>
+#include <synch.h>
 struct uio;
 struct stat;
 
@@ -57,6 +58,9 @@ struct vnode {
 	void *vn_data;                  /* Filesystem-specific data */
 
 	const struct vnode_ops *vn_ops; /* Functions on this vnode */
+
+	struct lock *vn_opslock;          /* Lock for read/write syscalls */
+
 };
 
 /*

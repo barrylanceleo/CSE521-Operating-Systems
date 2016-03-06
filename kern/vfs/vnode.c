@@ -52,6 +52,8 @@ vnode_init(struct vnode *vn, const struct vnode_ops *ops,
 	spinlock_init(&vn->vn_countlock);
 	vn->vn_fs = fs;
 	vn->vn_data = fsdata;
+	vn->vn_opslock = lock_create("Vnode_opslock");
+
 	return 0;
 }
 
@@ -64,11 +66,13 @@ vnode_cleanup(struct vnode *vn)
 	KASSERT(vn->vn_refcount == 1);
 
 	spinlock_cleanup(&vn->vn_countlock);
+	lock_destroy(vn->vn_opslock);
 
 	vn->vn_ops = NULL;
 	vn->vn_refcount = 0;
 	vn->vn_fs = NULL;
 	vn->vn_data = NULL;
+	vn->vn_opslock = NULL;
 }
 
 
