@@ -38,10 +38,16 @@
 
 #include <spinlock.h>
 #include <array.h>
+#include <synch.h>
 
 struct addrspace;
 struct thread;
 struct vnode;
+
+enum process_state {
+	PS_RUNNING,
+	PS_COMPLETED
+};
 
 /*
  * Process structure.
@@ -77,8 +83,17 @@ struct proc {
 
 	int p_fdcount;
 
-};
+	/* Process operations support */
 
+	int p_pid; // process id
+	int p_ppid; // parent process id
+
+	struct cv* p_waitcv;  // to handle wait pid
+	struct lock* p_waitcvlock;
+
+	enum process_state p_state;
+	int returnValue; // if process completed this variable has its return value
+};
 
 struct filetable_entry
 {

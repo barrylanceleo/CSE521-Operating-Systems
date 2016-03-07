@@ -68,4 +68,12 @@ int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes, int32_t* r
 int sys_close(userptr_t fd);
 int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval);
 
+// process system calls
+
+int sys_fork(pid_t* retval);
+int sys_getpid(pid_t* retval);
+int sys_waitpid(userptr_t pid, userptr_t status, userptr_t options, pid_t* retval);
+int sys_exec(userptr_t program, userptr_t args, int32_t* retval);
+int sys__exit(userptr_t exitcode);
+
 #endif /* _SYSCALL_H_ */
