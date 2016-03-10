@@ -117,15 +117,14 @@ int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 
 }
 
-int sys__exit(userptr_t exitcode) {
+int sys__exit(int exitcode) {
 	int result = 0;
-	int k_exitcode = copyin(exitcode, &k_exitcode, sizeof(int));
 	struct proc* curprocess = curproc;
 
 	lock_acquire(curprocess->p_waitcvlock);
-	curprocess->p_returnvalue = k_exitcode;
+	curprocess->p_returnvalue = exitcode;
 	curprocess->p_state = PS_COMPLETED;
-	kprintf("TEMPPPP: PS Set to completed\n");
+	kprintf("TEMPPPP: PS Set to completed %d\n", exitcode);
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);
 	lock_release(curprocess->p_waitcvlock);
 

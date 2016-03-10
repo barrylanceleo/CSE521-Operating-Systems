@@ -93,6 +93,8 @@ proc_create(const char *name) {
 
 	proc->p_returnvalue = -1;
 
+	proc->p_fdcounter = 0;
+
 	// add the process to the process table
 
 	return proc;
@@ -368,21 +370,20 @@ void proc_resetfdcount(struct proc* process) {
 }
 
 int proc_generatefd(struct proc* process) {
-	return process->p_fdcounter ++;
+	return process->p_fdcounter++;
 }
 
 static int filetable_addfd(struct proc* process, struct filetable_entry* entry) {
 	unsigned int index;
 	int result = array_add(process->p_filetable, entry, &index);
-	kprintf("TEMPPPP: Index of element after being added is %d\n",index);
+	kprintf("TEMPPPP: Index of element after being added is %d\n", index);
 	return result;
 }
 
+static void filetable_addentryforvnode(struct proc* process, int permission,
+		struct vnode* vn) {
 
-
-static void filetable_addentryforvnode(struct proc* process, int permission, struct vnode* vn) {
-
-	struct file_handle* handle =  (struct file_handle*) kmalloc(
+	struct file_handle* handle = (struct file_handle*) kmalloc(
 			sizeof(struct file_handle));
 	handle->fh_offset = 0;
 	handle->fh_permission = permission;
@@ -400,49 +401,42 @@ static void filetable_addentryforvnode(struct proc* process, int permission, str
 static struct vnode* console_vnode = NULL;
 
 int proc_openstandardfds(struct proc* process) {
-	if(process->p_fdcounter != 0) {
-		panic("opening standard fds while counter is not 0!");
+	if (process->p_fdcounter != 0) {
+		panic(
+				"opening standard fds while counter is not 0! (it is actually %d)",
+				process->p_fdcounter);
 	}
-	if(console_vnode == NULL) {
+	if (console_vnode == NULL) {
 		kprintf("TEMPPPP: CREATING STANDARD FDS\n");
-		if (vfs_open((char*)"con:", 0, O_RDWR, &console_vnode)) {
+		if (vfs_open((char*) "con:", 0, O_RDWR, &console_vnode)) {
 			kprintf("stdin open fail\n");
 			return -1;
 		}
 	}
 	kprintf("TEMPPPP: INSIDE OPEN STANDARD FDs\n");
-	filetable_addentryforvnode(process,O_RDONLY, console_vnode);
-	filetable_addentryforvnode(process,O_WRONLY, console_vnode);
-	filetable_addentryforvnode(process,O_WRONLY, console_vnode);
-	kprintf("TEMPPPP: END OF OPEN STANDARD FDs, file table size is %d\n",array_num(process->p_filetable));
+	filetable_addentryforvnode(process, O_RDONLY, console_vnode);
+	filetable_addentryforvnode(process, O_WRONLY, console_vnode);
+	filetable_addentryforvnode(process, O_WRONLY, console_vnode);
+	kprintf("TEMPPPP: END OF OPEN STANDARD FDs, file table size is %d\n",
+			array_num(process->p_filetable));
 	return 0;
 }
 
-int filetable_addentry (struct proc* process, char* filename, int flags, int permission) {
+int filetable_addentry(struct proc* process, char* filename, int flags,
+		int permission) {
 	struct vnode* vn;
-	int result =0;
+	int result = 0;
 
-	kprintf("TEMPPPP: Did this just break here?\n");
+	kprintf("TEMPPPP: Did this just break here for %s?\n", filename);
+	int* a = 0x0;
+	*a = 10;
 	if ((result = vfs_open(filename, flags, permission, &vn)) != 0) {
 		kprintf("TEMPPPP: Yep, %d\n", result);
-			return result;
+		return result;
 	}
 	kprintf("TEMPPPP: No\n");
 
 	filetable_addentryforvnode(process, permission, vn);
-
-/*	struct file_handle* handle =  (struct file_handle*) kmalloc(
-			sizeof(struct file_handle));
-	handle->fh_offset = 0;
-	handle->fh_permission = permission;
-	handle->fh_vnode = vn;
-
-	struct filetable_entry* entry = (struct filetable_entry*) kmalloc(
-			sizeof(struct filetable_entry));
-	entry->ft_fd = proc_generatefd(process);
-	entry->ft_handle = handle;
-
-	filetable_addfd(process, entry);*/
 
 	return 0;
 }
@@ -451,20 +445,17 @@ static int getftarrayindex(struct array* ft, int fd) {
 	unsigned int i;
 	unsigned int ft_len = array_num(ft);
 	for (i = 0; i < ft_len; i++) {
-		if (((struct filetable_entry*) array_get(ft, i))->ft_fd
-				== fd) {
+		if (((struct filetable_entry*) array_get(ft, i))->ft_fd == fd) {
 			return i;
 		}
 	}
 	return -1;
 }
 
-
-struct filetable_entry *filetable_lookup(struct array* table, int fd){
-
+struct filetable_entry *filetable_lookup(struct array* table, int fd) {
 
 	if (table == 0) {
-			return NULL;
+		return NULL;
 	}
 
 	int index = getftarrayindex(table, fd);
@@ -472,16 +463,16 @@ struct filetable_entry *filetable_lookup(struct array* table, int fd){
 		return NULL;
 	}
 
-	struct filetable_entry* entry = (struct filetable_entry*) array_get(table, index);
+	struct filetable_entry* entry = (struct filetable_entry*) array_get(table,
+			index);
 	return entry;
 
 }
 
-
-int filetable_remove(struct array* table, int fd){
+int filetable_remove(struct array* table, int fd) {
 
 	if (table == 0) {
-			return -1;
+		return -1;
 	}
 
 	int index = getftarrayindex(table, fd);
@@ -489,7 +480,8 @@ int filetable_remove(struct array* table, int fd){
 		return -1;
 	}
 
-	struct filetable_entry* entry = (struct filetable_entry*) array_get(table, index);
+	struct filetable_entry* entry = (struct filetable_entry*) array_get(table,
+			index);
 
 	filehandle_destroy(entry->ft_handle);
 
@@ -502,12 +494,11 @@ int filetable_remove(struct array* table, int fd){
 
 }
 
-
 void filetable_empty(struct array* ft) {
 	unsigned int i;
 	for (i = 0; i < array_num(ft); i++) {
-		struct filetable_entry* entry =
-				(struct filetable_entry*) array_get(ft, i);
+		struct filetable_entry* entry = (struct filetable_entry*) array_get(ft,
+				i);
 
 		filehandle_destroy(entry->ft_handle);
 
@@ -521,7 +512,7 @@ void filetable_empty(struct array* ft) {
 
 }
 
-void filehandle_destroy (struct file_handle* handle){
+void filehandle_destroy(struct file_handle* handle) {
 
 	// close the vnode based on the refcount
 	vfs_close(handle->fh_vnode);

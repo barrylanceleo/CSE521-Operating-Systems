@@ -87,8 +87,10 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
 	if (result) {
+		kprintf("TEMPPPP:runprogram.c vfs open failed!!\n");
 		return result;
 	}
+	kprintf("TEMPPPP:runprogram.c after vfs open!!\n");
 
 	/* We should be a new process. */
 	KASSERT(proc_getas() == NULL);
@@ -108,6 +110,8 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 
 	as_activate();
 
+	kprintf("TEMPPPP:runprogram.c after address space activation!!\n");
+
 	/* Load the executable. */
 	result = load_elf(v, &entrypoint);
 	if (result) {
@@ -115,6 +119,8 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 		vfs_close(v);
 		return result;
 	}
+
+	kprintf("TEMPPPP:runprogram.c after elf load!!\n");
 
 	/* Done with the file now. */
 	vfs_close(v);
@@ -134,7 +140,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 			NULL /*userspace addr of environment*/, stackptr, entrypoint);
 	//enter_new_process(argc /*argc*/, uargv /*userspace addr of argv*/,
 	//NULL /*userspace addr of environment*/, stackptr, entrypoint);
-
+	//TODO Uncomment above code
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");
 	return EINVAL;

@@ -147,7 +147,8 @@ void syscall(struct trapframe *tf) {
 				(userptr_t) tf->tf_a2, &retval);
 		break;
 	case SYS__exit:
-		err = sys__exit((userptr_t) tf->tf_a0);
+		kprintf("TEMPPPP:Exit has been called!	\n");
+		err = sys__exit((int) tf->tf_a0);
 		break;
 		/* Add stuff here */
 

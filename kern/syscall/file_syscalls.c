@@ -16,7 +16,6 @@
 #include <kern/fcntl.h>
 #include <kern/seek.h>
 
-
 int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode,
 		int32_t* retval) {
 
@@ -26,7 +25,8 @@ int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode,
 
 	// copy the file_name to the kernel space
 	char k_filename[FILE_NAME_MAXLEN + 1];
-	if ((result = copyinstr(file_name, k_filename, FILE_NAME_MAXLEN + 1, 0)) != 0) {
+	if ((result = copyinstr(file_name, k_filename, FILE_NAME_MAXLEN + 1, 0))
+			!= 0) {
 		return result;
 	}
 
@@ -42,8 +42,7 @@ int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode,
 	return result;
 }
 
-int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
-		int32_t* retval) {
+int sys_read(int fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
@@ -51,7 +50,8 @@ int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
 	size_t read_buflen = buflen;
 
 	// get the file table entry for the fd
-	struct filetable_entry* read_ft_entry = filetable_lookup(curprocess->p_filetable, read_fd);
+	struct filetable_entry* read_ft_entry = filetable_lookup(
+			curprocess->p_filetable, read_fd);
 
 	if (read_ft_entry == NULL) {
 		return EBADF;
@@ -62,8 +62,9 @@ int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
 
 	//check if the file handle has read permission
 	if (!((handle->fh_permission & 0) == O_RDONLY)
-						&& !(handle->fh_permission & O_RDWR)){
-		kprintf("TEMPPPP:No Read permission in sys read %d\n", handle->fh_permission);
+			&& !(handle->fh_permission & O_RDWR)) {
+		kprintf("TEMPPPP:No Read permission in sys read %d\n",
+				handle->fh_permission);
 		return EBADF;
 	}
 
@@ -71,13 +72,22 @@ int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
 	lock_acquire(file_vnode->vn_opslock);
 
 	//read the data to the uio
+
+	void * kbuf = kmalloc(read_buflen + 1);
+	// write the data from the uio to the file
 	struct iovec iov;
 	struct uio kuio;
-	void * kbuf = kmalloc(read_buflen + 1);
-	uio_kinit(&iov, &kuio, kbuf, read_buflen, 0,
-			UIO_READ);
+	iov.iov_ubase = user_buf_ptr;
+	iov.iov_len = buflen; // length of the memory space
+	kuio.uio_iov = &iov;
+	kuio.uio_iovcnt = 1;
+	kuio.uio_resid = buflen; // amount to read from the file
+	kuio.uio_offset = read_ft_entry->ft_handle->fh_offset;
+	kuio.uio_segflg = UIO_USERSPACE;
+	kuio.uio_rw = UIO_READ;
+	kuio.uio_space = curproc->p_addrspace;
 	result = VOP_READ(file_vnode, &kuio);
-	((char*)kbuf)[read_buflen]= '\0';
+	((char*) kbuf)[read_buflen] = '\0';
 	if (result) {
 		kprintf("TEMPPPP:ERROR IN READ\n");
 		// release lock on the vnode
@@ -85,10 +95,6 @@ int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
 		kfree(kbuf);
 		return EIO;
 	}
-	kprintf("TEMPPPP:Bytes read are %c , %d\n",((char*)kbuf)[0],  buflen - kuio.uio_resid );
-
-	// copy the read data to the userspace
-	result = copyout(kbuf, user_buf_ptr, buflen - kuio.uio_resid );
 	if (result) {
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
@@ -97,10 +103,10 @@ int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
 	}
 
 	// update the offset in the file table
-	handle->fh_offset += kuio.uio_resid;
+	handle->fh_offset += buflen - kuio.uio_resid;
 
 	// update the retval to indicate the number of bytes read
-	*retval = kuio.uio_resid;
+	*retval = buflen - kuio.uio_resid;
 
 	// release lock on the vnode
 	lock_release(file_vnode->vn_opslock);
@@ -110,21 +116,20 @@ int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
 
 }
 
-int sys_write(int fd, userptr_t user_buf_ptr, int nbytes,
-		int32_t* retval) {
+int sys_write(int fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
 	int write_fd = fd;
 	ssize_t write_nbytes = nbytes;
-	//kprintf("TEMPPPP:SENT TO WRITE : %d\n",nbytes);
 
 	// get the file table entry for the fd
-	struct filetable_entry* entry = filetable_lookup(curprocess->p_filetable, write_fd);
+	struct filetable_entry* entry = filetable_lookup(curprocess->p_filetable,
+			write_fd);
 	if (entry == NULL) {
-			kprintf("Invalid fd passed to write");
-			return EBADF;
+		kprintf("Invalid fd passed to write");
+		return EBADF;
 	}
 
 	struct file_handle* handle = entry->ft_handle;
@@ -132,7 +137,7 @@ int sys_write(int fd, userptr_t user_buf_ptr, int nbytes,
 
 	//check if the file handle has write has permissions
 	if (!(handle->fh_permission & O_WRONLY)
-						&& !(handle->fh_permission & O_RDWR)){
+			&& !(handle->fh_permission & O_RDWR)) {
 		kprintf("Invalid write permission on file for write\n");
 		return EBADF;
 	}
@@ -142,20 +147,19 @@ int sys_write(int fd, userptr_t user_buf_ptr, int nbytes,
 
 	// copy the data to the kernel space
 	void *kbuf = kmalloc(write_nbytes + 1);
-	if ((result = copyin(user_buf_ptr, kbuf, write_nbytes)) != 0) {
-		// release lock on the vnode
-		lock_release(file_vnode->vn_opslock);
-		kfree(kbuf);
-		return EFAULT;
-	}
-	((char*)kbuf)[write_nbytes] = '\0';
-
 
 	// write the data from the uio to the file
 	struct iovec iov;
 	struct uio kuio;
-	uio_kinit(&iov, &kuio, &kbuf, write_nbytes, 0,
-			UIO_WRITE);
+	iov.iov_ubase = user_buf_ptr;
+	iov.iov_len = nbytes; // length of the memory space
+	kuio.uio_iov = &iov;
+	kuio.uio_iovcnt = 1;
+	kuio.uio_resid = nbytes; // amount to read from the file
+	kuio.uio_offset = entry->ft_handle->fh_offset;
+	kuio.uio_segflg = UIO_USERSPACE;
+	kuio.uio_rw = UIO_WRITE;
+	kuio.uio_space = curproc->p_addrspace;
 	result = VOP_WRITE(file_vnode, &kuio);
 	if (result) {
 		// release lock on the vnode
@@ -163,12 +167,10 @@ int sys_write(int fd, userptr_t user_buf_ptr, int nbytes,
 		kfree(kbuf);
 		return result;
 	}
-	//kprintf("TEMPPPP:AFter write = %s\n", (char*)kbuf);
 
 	// update the offset in the file table
-	*retval = kuio.uio_resid;
+	*retval = nbytes - kuio.uio_resid;
 	handle->fh_offset += *retval;
-
 
 	// update the retval to indicate the number of bytes read
 	// release lock on the vnode
@@ -188,7 +190,7 @@ int sys_close(userptr_t fd, int32_t* retval) {
 		return result;
 	}
 
-	if(filetable_remove(curprocess->p_filetable, clos_fd) == -1) {
+	if (filetable_remove(curprocess->p_filetable, clos_fd) == -1) {
 		return EBADF;
 	}
 
@@ -209,9 +211,10 @@ int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval) {
 		return result;
 	}
 
-	struct filetable_entry* entry = filetable_lookup(curprocess->p_filetable, seek_fd);
+	struct filetable_entry* entry = filetable_lookup(curprocess->p_filetable,
+			seek_fd);
 	if (entry == NULL) {
-			return EBADF;
+		return EBADF;
 	}
 
 	struct file_handle* handle = entry->ft_handle;
@@ -268,7 +271,7 @@ int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval) {
 
 }
 
-int sys_dup2(userptr_t oldfd, userptr_t newfd , int32_t* retval){
+int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
@@ -279,11 +282,12 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd , int32_t* retval){
 	result = copyin(newfd, &k_newfd, sizeof(int));
 
 	// look up the fds
-	struct filetable_entry* oldfd_entry = filetable_lookup(curprocess->p_filetable, k_oldfd);
-	struct filetable_entry* newfd_entry = filetable_lookup(curprocess->p_filetable, k_oldfd);
+	struct filetable_entry* oldfd_entry = filetable_lookup(
+			curprocess->p_filetable, k_oldfd);
+	struct filetable_entry* newfd_entry = filetable_lookup(
+			curprocess->p_filetable, k_oldfd);
 
-	if(oldfd_entry == NULL)
-	{
+	if (oldfd_entry == NULL) {
 		return EBADF;
 	}
 
@@ -297,10 +301,7 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd , int32_t* retval){
 	// TODO create a file table entry with the newfd
 	// and make its file handle point to oldfd's file handle
 
-
 	*retval = k_newfd;
 	return result;
 }
-
-
 
