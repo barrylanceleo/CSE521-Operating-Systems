@@ -55,7 +55,6 @@ main(int argc, char **argv)
 
 	secprintf(SECRET, "Able was i ere i saw elbA", "/testbin/consoletest");
 
-	kprintf("MAMA Biskothiu...\n");
 	// Guru: Since exit() may not yet be implemented, just trigger a
 	// failure that the grading scripts expect to see.
 	tprintf("Accessing invalid memory location to trigger failure\n");

@@ -133,6 +133,9 @@ common_prog(int nargs, char **args)
 		proc_destroy(proc);
 		return result;
 	}
+	int status;
+	pid_t retval;
+	k_waitpid(proc->p_pid, &status, &retval);
 
 	/*
 	 * The new process will be destroyed when the program exits...

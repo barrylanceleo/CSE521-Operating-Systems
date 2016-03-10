@@ -166,4 +166,6 @@ void filehandle_destroy (struct file_handle* handle);
 /* run a program*/
 int runprogram2(char *progname, char** argv, unsigned long argc);
 
+int k_waitpid(pid_t k_pid, int* status, pid_t* retval);
+
 #endif /* _PROC_H_ */

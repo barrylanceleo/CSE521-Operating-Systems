@@ -16,7 +16,6 @@
 #include <copyinout.h>
 #include <limits.h>
 
-
 int sys_getpid(pid_t* retval) {
 	*retval = curproc->p_pid;
 	return 0;
@@ -30,8 +29,8 @@ int sys_fork(struct trapframe* tf, pid_t* pid) {
 		return ENOMEM;
 	}
 	struct thread* currentthread = curthread;
-	ret = thread_fork(currentthread->t_name, child, enter_forked_process, (void*)&tf,
-			(unsigned long)1);
+	ret = thread_fork(currentthread->t_name, child, enter_forked_process,
+			(void*) &tf, (unsigned long) 1);
 	if (ret) {
 		proc_destroy(child);
 		return ENOMEM;
@@ -44,13 +43,13 @@ static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc)
 	userptr_t uarg_iter = uargs;
 	userptr_t uaddress;
 	int count = 0;
-	char buf [ARG_MAX];
+	char buf[ARG_MAX];
 	while (uarg_iter != NULL) {
 
 		copyin(uarg_iter, &uaddress, sizeof(char*));
 		size_t len = 0;
 		copyinstr(uaddress, buf, ARG_MAX, &len);
-		kargv[count] = (char*)kmalloc(sizeof(char)*len);
+		kargv[count] = (char*) kmalloc(sizeof(char) * len);
 		strcpy(kargv[count], buf);
 		count++;
 		uarg_iter++;
@@ -76,9 +75,32 @@ int sys_execv(userptr_t program, userptr_t args) {
 	return result;
 }
 
-int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options, pid_t* retval) {
+int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
+	int result = 0;
+	struct proc* targetprocess;
+	lookup_processtable(k_pid, &targetprocess);
+	lock_acquire(targetprocess->p_waitcvlock);
+	while (true) {
+		if (targetprocess->p_state == PS_COMPLETED) {
+			*status = targetprocess->p_returnvalue;
+			lock_release(targetprocess->p_waitcvlock);
+			proc_destroy(targetprocess);
+			*retval = k_pid;
+			return result;
+		}
+		cv_wait(targetprocess->p_waitcv, targetprocess->p_waitcvlock);
+	}
+	return -1; // this code must be unreachable
+}
 
-	if(options != 0){
+int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
+		pid_t* retval) {
+
+	int k_options;
+
+	copyin(options, &k_options, sizeof(int));
+
+	if (k_options != 0) {
 		*retval = -1;
 		return -1;
 	}
@@ -87,23 +109,14 @@ int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options, pid_t* r
 	int result = 0;
 	result = copyin(userpid, &k_pid, sizeof(pid_t));
 	*retval = k_pid;
-	struct proc* targetprocess;
-	lookup_processtable(k_pid, &targetprocess);
-	lock_acquire(targetprocess->p_waitcvlock);
-	while (true) {
-		if (targetprocess->p_state == PS_COMPLETED) {
-			result = copyout(&targetprocess->p_returnvalue, status, sizeof(int));
-			lock_release(targetprocess->p_waitcvlock);
-			proc_destroy(targetprocess);
-			return result;
-		}
-		cv_wait(targetprocess->p_waitcv, targetprocess->p_waitcvlock);
-	}
-	return -1;  // this code must be unreachable
+	int k_status;
+	result = k_waitpid(k_pid, &k_status, retval);
+	result = copyout(&k_status, status, sizeof(int));
+	return result;
+
 }
 
-int sys__exit(userptr_t exitcode)
-{
+int sys__exit(userptr_t exitcode) {
 	int result = 0;
 	int k_exitcode = copyin(exitcode, &k_exitcode, sizeof(int));
 	struct proc* curprocess = curproc;

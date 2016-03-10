@@ -364,9 +364,6 @@ void rwlock_destroy(struct rwlock * rwlock)
 {
     KASSERT(rwlock != NULL);
 
-    // TODO: panic if rwlock is destroyed while holding a read or write lock
-//    if(rwlock->read_count != 0 || rwlock->is_write_locked == true)
-//        panic("rwlock: Trying to destroy rwlock while some thread is holding read or write lock on it");
 
     sem_destroy(rwlock->resource_sem);
     sem_destroy(rwlock->read_count_sem);

@@ -190,6 +190,7 @@ void proc_bootstrap(void) {
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
 	}
+	init_processtable();
 }
 
 /*
@@ -206,6 +207,8 @@ proc_create_runprogram(const char *name) {
 	if (newproc == NULL) {
 		return NULL;
 	}
+
+	addTo_processtable(newproc);
 
 	/* VM fields */
 
