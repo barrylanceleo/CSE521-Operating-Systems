@@ -39,7 +39,7 @@
 #include <spinlock.h>
 #include <array.h>
 #include <synch.h>
-
+#include <kern/types.h>
 struct addrspace;
 struct thread;
 struct vnode;
@@ -81,7 +81,7 @@ struct proc {
 
 	struct array *p_filetable;
 
-	int p_fdcount;
+	int p_fdcounter;
 
 	/* Process operations support */
 
@@ -92,15 +92,20 @@ struct proc {
 	struct lock* p_waitcvlock;
 
 	enum process_state p_state;
-	int returnValue; // if process completed this variable has its return value
+	int p_returnvalue; // if process completed this variable has its return value
+};
+
+struct file_handle
+{
+	int fh_offset;
+	int fh_permission;
+	struct vnode* fh_vnode;
 };
 
 struct filetable_entry
 {
 	int ft_fd;
-	int ft_offset;
-	int ft_permission;
-	struct vnode* ft_vnode;
+	struct file_handle* ft_handle;
 };
 
 
@@ -112,6 +117,9 @@ void proc_bootstrap(void);
 
 /* Create a fresh process for use by runprogram(). */
 struct proc *proc_create_runprogram(const char *name);
+
+/* Create a child process for the passed process. */
+struct proc *proc_createchild(struct proc* process);
 
 /* Destroy a process. */
 void proc_destroy(struct proc *proc);
@@ -128,5 +136,34 @@ struct addrspace *proc_getas(void);
 /* Change the address space of the current process, and return the old one. */
 struct addrspace *proc_setas(struct addrspace *);
 
+/* Reset the fd count of process to zero and empty filetable*/
+void proc_resetfdcount(struct proc* process);
+
+/* Generate a new file descriptor for the current process */
+int proc_generatefd(struct proc* process);
+
+/* Open standard fd's of stdin stdout and stderr*/
+int proc_openstandardfds(struct proc* process);
+
+///* Get the index of the fd from the filetable*/
+//unsigned int getftarrayindex(struct array* ft, int fd);
+
+/* Empty the contents of the file table */
+void filetable_empty(struct array* ft);
+
+/* Add a new entry to the file table, return the inserted fd */
+int filetable_addentry (struct proc* process, char* filename, int flags, int permission);
+
+/* Lookup an fd in the filetable*/
+struct filetable_entry *filetable_lookup(struct array* ft, int fd);
+
+/* remove an entry from the file table filetable, destroys filehandle and free memory*/
+int filetable_remove(struct array* ft, int fd);
+
+/* close the vnode and free memory*/
+void filehandle_destroy (struct file_handle* handle);
+
+/* run a program*/
+int runprogram2(char *progname, char** argv, unsigned long argc);
 
 #endif /* _PROC_H_ */

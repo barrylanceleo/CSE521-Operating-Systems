@@ -48,7 +48,9 @@
 #include <current.h>
 #include <addrspace.h>
 #include <vnode.h>
-
+#include <vfs.h>
+#include <processtable.h>
+#include <kern/fcntl.h>
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
@@ -57,10 +59,8 @@ struct proc *kproc;
 /*
  * Create a proc structure.
  */
-static
-struct proc *
-proc_create(const char *name)
-{
+static struct proc *
+proc_create(const char *name) {
 	struct proc *proc;
 
 	proc = kmalloc(sizeof(*proc));
@@ -82,7 +82,18 @@ proc_create(const char *name)
 	/* VFS fields */
 	proc->p_cwd = NULL;
 
-	proc->p_filetable = NULL;
+	/** file table */
+	proc->p_filetable = array_create();
+
+	proc->p_waitcvlock = lock_create(name);
+
+	proc->p_waitcv = cv_create(name);
+
+	proc->p_state = PS_RUNNING;
+
+	proc->p_returnvalue = -1;
+
+	// add the process to the process table
 
 	return proc;
 }
@@ -93,9 +104,7 @@ proc_create(const char *name)
  * Note: nothing currently calls this. Your wait/exit code will
  * probably want to do so.
  */
-void
-proc_destroy(struct proc *proc)
-{
+void proc_destroy(struct proc *proc) {
 	/*
 	 * You probably want to destroy and null out much of the
 	 * process (particularly the address space) at exit time if
@@ -159,8 +168,7 @@ proc_destroy(struct proc *proc)
 		if (proc == curproc) {
 			as = proc_setas(NULL);
 			as_deactivate();
-		}
-		else {
+		} else {
 			as = proc->p_addrspace;
 			proc->p_addrspace = NULL;
 		}
@@ -177,9 +185,7 @@ proc_destroy(struct proc *proc)
 /*
  * Create the process structure for the kernel.
  */
-void
-proc_bootstrap(void)
-{
+void proc_bootstrap(void) {
 	kproc = proc_create("[kernel]");
 	if (kproc == NULL) {
 		panic("proc_create for kproc failed\n");
@@ -193,8 +199,7 @@ proc_bootstrap(void)
  * process's (that is, the kernel menu's) current directory.
  */
 struct proc *
-proc_create_runprogram(const char *name)
-{
+proc_create_runprogram(const char *name) {
 	struct proc *newproc;
 
 	newproc = proc_create(name);
@@ -206,9 +211,9 @@ proc_create_runprogram(const char *name)
 
 	newproc->p_addrspace = NULL;
 
-	/* VFS fields */
+	/* Create the standard fds */
+	proc_openstandardfds(newproc);
 
-	newproc->p_filetable = NULL;
 	/*
 	 * Lock the current process to copy its current directory.
 	 * (We don't need to lock the new process, though, as we have
@@ -224,6 +229,42 @@ proc_create_runprogram(const char *name)
 	return newproc;
 }
 
+struct proc* proc_createchild(struct proc* parent) {
+	struct proc* child = proc_create(parent->p_name);
+	if (child == NULL) {
+		return NULL;
+	}
+
+	unsigned int i;
+	// TODO Move this to a separate method
+	for (i = 0; i < array_num(parent->p_filetable); i++) {
+		array_add(child->p_filetable, array_get(parent->p_filetable, i), NULL);
+	}
+	child->p_fdcounter = parent->p_fdcounter;
+
+	/** process table */
+	child->p_ppid = parent->p_pid;
+	addTo_processtable(child);
+
+	/** cwd */
+	/*
+	 * Lock the current process to copy its current directory.
+	 * (We don't need to lock the new process, though, as we have
+	 * the only reference to it.)
+	 */
+	spinlock_acquire(&(parent->p_lock));
+	if (parent->p_cwd != NULL) {
+		VOP_INCREF(parent->p_cwd);
+		child->p_cwd = parent->p_cwd;
+	}
+	spinlock_release(&(parent->p_lock));
+
+	/** address space */
+	as_copy(parent->p_addrspace, &child->p_addrspace);
+
+	return child;
+}
+
 /*
  * Add a thread to a process. Either the thread or the process might
  * or might not be current.
@@ -233,9 +274,7 @@ proc_create_runprogram(const char *name)
  * the timer interrupt context switch, and any other implicit uses
  * of "curproc".
  */
-int
-proc_addthread(struct proc *proc, struct thread *t)
-{
+int proc_addthread(struct proc *proc, struct thread *t) {
 	int spl;
 
 	KASSERT(t->t_proc == NULL);
@@ -260,9 +299,7 @@ proc_addthread(struct proc *proc, struct thread *t)
  * the timer interrupt context switch, and any other implicit uses
  * of "curproc".
  */
-void
-proc_remthread(struct thread *t)
-{
+void proc_remthread(struct thread *t) {
 	struct proc *proc;
 	int spl;
 
@@ -288,8 +325,7 @@ proc_remthread(struct thread *t)
  * space might disappear under you.
  */
 struct addrspace *
-proc_getas(void)
-{
+proc_getas(void) {
 	struct addrspace *as;
 	struct proc *proc = curproc;
 
@@ -308,8 +344,7 @@ proc_getas(void)
  * one for later restoration or disposal.
  */
 struct addrspace *
-proc_setas(struct addrspace *newas)
-{
+proc_setas(struct addrspace *newas) {
 	struct addrspace *oldas;
 	struct proc *proc = curproc;
 
@@ -321,3 +356,136 @@ proc_setas(struct addrspace *newas)
 	spinlock_release(&proc->p_lock);
 	return oldas;
 }
+
+void proc_resetfdcount(struct proc* process) {
+	process->p_fdcounter = 0;
+	filetable_empty(process->p_filetable);
+}
+
+int proc_generatefd(struct proc* process) {
+	return process->p_fdcounter ++;
+}
+
+int proc_openstandardfds(struct proc* process) {
+	if(process->p_fdcounter != 0) {
+		panic("sjflkjdsklfjl"); // TODO fix this
+	}
+	filetable_addentry(process, (char*)"/dev/stdin" , 0, O_RDONLY);
+	filetable_addentry(process, (char*)"/dev/stdout" , 0, O_WRONLY);
+	filetable_addentry(process, (char*)"/dev/stderr" , 0, O_WRONLY);
+	return 0;
+}
+
+
+static int filetable_addfd(struct proc* process, struct filetable_entry* entry) {
+	unsigned int index;
+	int result = array_add(process->p_filetable, entry, &index);
+	return result;
+}
+
+int filetable_addentry (struct proc* process, char* filename, int flags, int permission) {
+	struct vnode* vn;
+	int result =0;
+
+
+	if ((result = vfs_open(filename, flags, permission, &vn)) != 0) {
+			return result;
+	}
+
+	struct file_handle* handle =  (struct file_handle*) kmalloc(
+			sizeof(struct file_handle));
+	handle->fh_offset = 0;
+	handle->fh_permission = permission;
+	handle->fh_vnode = vn;
+
+	struct filetable_entry* entry = (struct filetable_entry*) kmalloc(
+			sizeof(struct filetable_entry));
+	entry->ft_fd = proc_generatefd(process);
+	entry->ft_handle = handle;
+
+	filetable_addfd(process, entry);
+
+	return entry->ft_fd;
+}
+
+static int getftarrayindex(struct array* ft, int fd) {
+	unsigned int i;
+	unsigned int ft_len = array_num(ft);
+	for (i = 0; i < ft_len; i++) {
+		if (((struct filetable_entry*) array_get(ft, i))->ft_fd
+				== fd) {
+			return i;
+		}
+	}
+	return -1;
+}
+
+
+struct filetable_entry *filetable_lookup(struct array* ft, int fd){
+
+
+	if (ft == 0) {
+			return NULL;
+	}
+
+	int index = getftarrayindex(ft, fd);
+	if (index < 0) {
+		return NULL;
+	}
+
+	struct filetable_entry* entry = (struct filetable_entry*) array_get(ft, index);
+	return entry;
+
+}
+
+
+int filetable_remove(struct array* ft, int fd){
+
+	if (ft == 0) {
+			return -1;
+	}
+
+	int index = getftarrayindex(ft, fd);
+	if (index < 0) {
+		return -1;
+	}
+
+	struct filetable_entry* entry = (struct filetable_entry*) array_get(ft, index);
+
+	filehandle_destroy(entry->ft_handle);
+
+	// free memory allocated for the entry
+	kfree(entry);
+
+	array_remove(ft, index);
+
+	return 0;
+
+}
+
+
+void filetable_empty(struct array* ft) {
+	unsigned int i;
+	for (i = 0; i < array_num(ft); i++) {
+		struct filetable_entry* entry =
+				(struct filetable_entry*) array_get(ft, i);
+
+		filehandle_destroy(entry->ft_handle);
+
+		// free memory allocated for the entry
+		kfree(entry);
+
+		// remove the entry from the filetable
+		array_remove(ft, i);
+
+	}
+
+}
+
+void filehandle_destroy (struct file_handle* handle){
+
+	// close the vnode based on the refcount
+	vfs_close(handle->fh_vnode);
+	kfree(handle);
+}
+

@@ -34,6 +34,8 @@
 #include <cdefs.h> /* for __DEAD */
 struct trapframe; /* from <machine/trapframe.h> */
 
+#define FILE_NAME_MAXLEN 400
+
 /*
  * The system call dispatcher.
  */
@@ -45,7 +47,7 @@ void syscall(struct trapframe *tf);
  */
 
 /* Helper for fork(). You write this. */
-void enter_forked_process(struct trapframe *tf);
+void enter_forked_process(void* tf, unsigned long n);
 
 /* Enter user mode. Does not return. */
 __DEAD void enter_new_process(int argc, userptr_t argv, userptr_t env,
@@ -65,15 +67,16 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode, int32_t* retval);
 int sys_read(userptr_t fd, userptr_t user_buf_ptr, userptr_t buflen, int32_t* retval);
 int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes, int32_t* retval);
-int sys_close(userptr_t fd);
+int sys_close(userptr_t fd, int32_t* retval);
 int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval);
+int sys_dup2(userptr_t oldfd, userptr_t newfd , int32_t* retval);
 
 // process system calls
 
-int sys_fork(pid_t* retval);
+int sys_fork(struct trapframe* tf, pid_t* pid);
 int sys_getpid(pid_t* retval);
 int sys_waitpid(userptr_t pid, userptr_t status, userptr_t options, pid_t* retval);
-int sys_exec(userptr_t program, userptr_t args, int32_t* retval);
+int sys_execv(userptr_t program, userptr_t args);
 int sys__exit(userptr_t exitcode);
 
 #endif /* _SYSCALL_H_ */

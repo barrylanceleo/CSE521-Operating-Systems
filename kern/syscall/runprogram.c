@@ -44,6 +44,29 @@
 #include <vfs.h>
 #include <syscall.h>
 #include <test.h>
+#include <copyinout.h>
+
+static void copyoutargv(userptr_t uargv, char** argv, int argc) {
+	int i = 0;
+	userptr_t uargv_iter = uargv;
+	for (; i < argc; i++) {
+		copyout(argv[i], uargv_iter, sizeof(char*));
+		uargv_iter += sizeof(char*);
+	}
+	char buf[4];
+	for (i = argc - 1; i >= 0; i--) {
+		int charleft = strlen(argv[i]);
+		int j = 0;
+		while (charleft > 0) {
+			for (int i = 0; i < 4; i++) {
+				buf[i] = charleft > 0 ? argv[i][j++] : '\0';
+				charleft--;
+			}
+			copyout(buf, uargv_iter, sizeof(char)*4);
+			uargv_iter += sizeof(char)*4;
+		}
+	}
+}
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -51,9 +74,7 @@
  *
  * Calls vfs_open on progname and thus may destroy it.
  */
-int
-runprogram(char *progname)
-{
+int runprogram2(char *progname, char** argv, unsigned long argc) {
 	struct addrspace *as;
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
@@ -76,7 +97,11 @@ runprogram(char *progname)
 	}
 
 	/* Switch to it and activate it. */
-	proc_setas(as);
+	struct addrspace *oldas = proc_setas(as);
+	if (oldas) {
+		as_destroy(oldas);
+	}
+
 	as_activate();
 
 	/* Load the executable. */
@@ -96,14 +121,18 @@ runprogram(char *progname)
 		/* p_addrspace will go away when curproc is destroyed */
 		return result;
 	}
+	userptr_t uargv = (userptr_t)stackptr;
+	copyoutargv(uargv, argv, argc);
 
 	/* Warp to user mode. */
-	enter_new_process(0 /*argc*/, NULL /*userspace addr of argv*/,
-			  NULL /*userspace addr of environment*/,
-			  stackptr, entrypoint);
+	enter_new_process(argc /*argc*/, uargv /*userspace addr of argv*/,
+			NULL /*userspace addr of environment*/, stackptr, entrypoint);
 
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");
 	return EINVAL;
 }
 
+int runprogram(char *progname) {
+	return runprogram2 (progname, NULL, 0);
+}
