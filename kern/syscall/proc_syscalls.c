@@ -82,6 +82,7 @@ int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
 	lock_acquire(targetprocess->p_waitcvlock);
 	while (true) {
 		if (targetprocess->p_state == PS_COMPLETED) {
+			kprintf("TEMPPPP PS Completed:\n");
 			*status = targetprocess->p_returnvalue;
 			lock_release(targetprocess->p_waitcvlock);
 			proc_destroy(targetprocess);
@@ -124,6 +125,7 @@ int sys__exit(userptr_t exitcode) {
 	lock_acquire(curprocess->p_waitcvlock);
 	curprocess->p_returnvalue = k_exitcode;
 	curprocess->p_state = PS_COMPLETED;
+	kprintf("TEMPPPP: PS Set to completed\n");
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);
 	lock_release(curprocess->p_waitcvlock);
 

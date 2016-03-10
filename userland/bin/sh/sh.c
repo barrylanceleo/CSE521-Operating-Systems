@@ -567,6 +567,7 @@ main(int argc, char *argv[])
 #ifdef HOST
 	hostcompat_init(argc, argv);
 #endif
+
 	check_timing();
 
 	/*

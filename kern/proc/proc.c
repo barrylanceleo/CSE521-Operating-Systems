@@ -175,6 +175,8 @@ void proc_destroy(struct proc *proc) {
 		as_destroy(as);
 	}
 
+	//TODO destroy everything created in create
+
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
@@ -369,31 +371,16 @@ int proc_generatefd(struct proc* process) {
 	return process->p_fdcounter ++;
 }
 
-int proc_openstandardfds(struct proc* process) {
-	if(process->p_fdcounter != 0) {
-		panic("sjflkjdsklfjl"); // TODO fix this
-	}
-	filetable_addentry(process, (char*)"/dev/stdin" , 0, O_RDONLY);
-	filetable_addentry(process, (char*)"/dev/stdout" , 0, O_WRONLY);
-	filetable_addentry(process, (char*)"/dev/stderr" , 0, O_WRONLY);
-	return 0;
-}
-
-
 static int filetable_addfd(struct proc* process, struct filetable_entry* entry) {
 	unsigned int index;
 	int result = array_add(process->p_filetable, entry, &index);
+	kprintf("TEMPPPP: Index of element after being added is %d\n",index);
 	return result;
 }
 
-int filetable_addentry (struct proc* process, char* filename, int flags, int permission) {
-	struct vnode* vn;
-	int result =0;
 
 
-	if ((result = vfs_open(filename, flags, permission, &vn)) != 0) {
-			return result;
-	}
+static void filetable_addentryforvnode(struct proc* process, int permission, struct vnode* vn) {
 
 	struct file_handle* handle =  (struct file_handle*) kmalloc(
 			sizeof(struct file_handle));
@@ -408,7 +395,56 @@ int filetable_addentry (struct proc* process, char* filename, int flags, int per
 
 	filetable_addfd(process, entry);
 
-	return entry->ft_fd;
+}
+
+static struct vnode* console_vnode = NULL;
+
+int proc_openstandardfds(struct proc* process) {
+	if(process->p_fdcounter != 0) {
+		panic("opening standard fds while counter is not 0!");
+	}
+	if(console_vnode == NULL) {
+		kprintf("TEMPPPP: CREATING STANDARD FDS\n");
+		if (vfs_open((char*)"con:", 0, O_RDWR, &console_vnode)) {
+			kprintf("stdin open fail\n");
+			return -1;
+		}
+	}
+	kprintf("TEMPPPP: INSIDE OPEN STANDARD FDs\n");
+	filetable_addentryforvnode(process,O_RDONLY, console_vnode);
+	filetable_addentryforvnode(process,O_WRONLY, console_vnode);
+	filetable_addentryforvnode(process,O_WRONLY, console_vnode);
+	kprintf("TEMPPPP: END OF OPEN STANDARD FDs, file table size is %d\n",array_num(process->p_filetable));
+	return 0;
+}
+
+int filetable_addentry (struct proc* process, char* filename, int flags, int permission) {
+	struct vnode* vn;
+	int result =0;
+
+	kprintf("TEMPPPP: Did this just break here?\n");
+	if ((result = vfs_open(filename, flags, permission, &vn)) != 0) {
+		kprintf("TEMPPPP: Yep, %d\n", result);
+			return result;
+	}
+	kprintf("TEMPPPP: No\n");
+
+	filetable_addentryforvnode(process, permission, vn);
+
+/*	struct file_handle* handle =  (struct file_handle*) kmalloc(
+			sizeof(struct file_handle));
+	handle->fh_offset = 0;
+	handle->fh_permission = permission;
+	handle->fh_vnode = vn;
+
+	struct filetable_entry* entry = (struct filetable_entry*) kmalloc(
+			sizeof(struct filetable_entry));
+	entry->ft_fd = proc_generatefd(process);
+	entry->ft_handle = handle;
+
+	filetable_addfd(process, entry);*/
+
+	return 0;
 }
 
 static int getftarrayindex(struct array* ft, int fd) {
@@ -424,43 +460,43 @@ static int getftarrayindex(struct array* ft, int fd) {
 }
 
 
-struct filetable_entry *filetable_lookup(struct array* ft, int fd){
+struct filetable_entry *filetable_lookup(struct array* table, int fd){
 
 
-	if (ft == 0) {
+	if (table == 0) {
 			return NULL;
 	}
 
-	int index = getftarrayindex(ft, fd);
+	int index = getftarrayindex(table, fd);
 	if (index < 0) {
 		return NULL;
 	}
 
-	struct filetable_entry* entry = (struct filetable_entry*) array_get(ft, index);
+	struct filetable_entry* entry = (struct filetable_entry*) array_get(table, index);
 	return entry;
 
 }
 
 
-int filetable_remove(struct array* ft, int fd){
+int filetable_remove(struct array* table, int fd){
 
-	if (ft == 0) {
+	if (table == 0) {
 			return -1;
 	}
 
-	int index = getftarrayindex(ft, fd);
+	int index = getftarrayindex(table, fd);
 	if (index < 0) {
 		return -1;
 	}
 
-	struct filetable_entry* entry = (struct filetable_entry*) array_get(ft, index);
+	struct filetable_entry* entry = (struct filetable_entry*) array_get(table, index);
 
 	filehandle_destroy(entry->ft_handle);
 
 	// free memory allocated for the entry
 	kfree(entry);
 
-	array_remove(ft, index);
+	array_remove(table, index);
 
 	return 0;
 

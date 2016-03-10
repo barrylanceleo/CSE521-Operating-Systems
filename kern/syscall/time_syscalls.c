@@ -47,7 +47,7 @@ sys___time(userptr_t user_seconds_ptr, userptr_t user_nanoseconds_ptr)
 	if (result) {
 		return result;
 	}
-
+	//kprintf("TEMPPPP: secs = %d, nsec = %d\n", ts.tv_nsec, ts.tv_sec);
 	result = copyout(&ts.tv_nsec, user_nanoseconds_ptr,
 			 sizeof(ts.tv_nsec));
 	if (result) {

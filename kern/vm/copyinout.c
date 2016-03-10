@@ -165,8 +165,8 @@ copyin(const_userptr_t usersrc, void *dest, size_t len)
 	}
 
 	curthread->t_machdep.tm_badfaultfunc = copyfail;
-
 	result = setjmp(curthread->t_machdep.tm_copyjmp);
+
 	if (result) {
 		curthread->t_machdep.tm_badfaultfunc = NULL;
 		return EFAULT;

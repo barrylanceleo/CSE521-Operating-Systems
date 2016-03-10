@@ -46,6 +46,7 @@
 #include <test.h>
 #include <copyinout.h>
 
+/*
 static void copyoutargv(userptr_t uargv, char** argv, int argc) {
 	int i = 0;
 	userptr_t uargv_iter = uargv;
@@ -67,6 +68,7 @@ static void copyoutargv(userptr_t uargv, char** argv, int argc) {
 		}
 	}
 }
+*/ // TODO Uncomment this
 
 /*
  * Load program "progname" and start running it in usermode.
@@ -75,6 +77,8 @@ static void copyoutargv(userptr_t uargv, char** argv, int argc) {
  * Calls vfs_open on progname and thus may destroy it.
  */
 int runprogram2(char *progname, char** argv, unsigned long argc) {
+	(void) argv;
+	(void) argc;
 	struct addrspace *as;
 	struct vnode *v;
 	vaddr_t entrypoint, stackptr;
@@ -121,12 +125,15 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 		/* p_addrspace will go away when curproc is destroyed */
 		return result;
 	}
-	userptr_t uargv = (userptr_t)stackptr;
-	copyoutargv(uargv, argv, argc);
+	//userptr_t uargv = (userptr_t)stackptr;
+	//copyoutargv(uargv, argv, argc);
+	kprintf("TEMPPPP:runprogram.c Entering new process!!\n");
 
 	/* Warp to user mode. */
-	enter_new_process(argc /*argc*/, uargv /*userspace addr of argv*/,
+	enter_new_process(0 /*argc*/, NULL/*userspace addr of argv*/,
 			NULL /*userspace addr of environment*/, stackptr, entrypoint);
+	//enter_new_process(argc /*argc*/, uargv /*userspace addr of argv*/,
+	//NULL /*userspace addr of environment*/, stackptr, entrypoint);
 
 	/* enter_new_process does not return. */
 	panic("enter_new_process returned\n");

@@ -117,6 +117,7 @@ common_prog(int nargs, char **args)
 {
 	struct proc *proc;
 	int result;
+	kprintf("TEMPPPP: COMMON PROG BEGIN\n");
 
 	/* Create a process for the new program to run in. */
 	proc = proc_create_runprogram(args[0] /* name */);
@@ -135,8 +136,13 @@ common_prog(int nargs, char **args)
 	}
 	int status;
 	pid_t retval;
-	k_waitpid(proc->p_pid, &status, &retval);
 
+	kprintf("TEMPPPP:before waitpid\n");
+	k_waitpid(proc->p_pid, &status, &retval);
+	kprintf("TEMPPPP:after waitpid\n");
+
+	(void) status;
+	(void) retval;
 	/*
 	 * The new process will be destroyed when the program exits...
 	 * once you write the code for handling that.

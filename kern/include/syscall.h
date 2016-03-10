@@ -65,8 +65,8 @@ int sys___time(userptr_t user_seconds, userptr_t user_nanoseconds);
 // file system calls
 
 int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode, int32_t* retval);
-int sys_read(userptr_t fd, userptr_t user_buf_ptr, userptr_t buflen, int32_t* retval);
-int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes, int32_t* retval);
+int sys_read(int fd, userptr_t user_buf_ptr, int buflen, int32_t* retval);
+int sys_write(int fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval);
 int sys_close(userptr_t fd, int32_t* retval);
 int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval);
 int sys_dup2(userptr_t oldfd, userptr_t newfd , int32_t* retval);

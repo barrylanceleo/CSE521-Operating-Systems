@@ -42,22 +42,16 @@ int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode,
 	return result;
 }
 
-int sys_read(userptr_t fd, userptr_t user_buf_ptr, userptr_t buflen,
+int sys_read(int fd, userptr_t user_buf_ptr, int buflen,
 		int32_t* retval) {
-
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
-	int read_fd;
-	size_t read_buflen;
-	result = copyin(fd, &read_fd, sizeof(int));
-	result = copyin(buflen, &read_buflen, sizeof(size_t));
-	if (result) {
-		return result;
-	}
+	int read_fd = fd;
+	size_t read_buflen = buflen;
 
 	// get the file table entry for the fd
-	 struct filetable_entry* read_ft_entry = filetable_lookup(curprocess->p_filetable, read_fd);
+	struct filetable_entry* read_ft_entry = filetable_lookup(curprocess->p_filetable, read_fd);
 
 	if (read_ft_entry == NULL) {
 		return EBADF;
@@ -67,8 +61,9 @@ int sys_read(userptr_t fd, userptr_t user_buf_ptr, userptr_t buflen,
 	struct vnode* file_vnode = handle->fh_vnode;
 
 	//check if the file handle has read permission
-	if ((handle->fh_permission & O_RDONLY) == O_RDONLY
-						|| (handle->fh_permission & O_RDWR)){
+	if (!((handle->fh_permission & 0) == O_RDONLY)
+						&& !(handle->fh_permission & O_RDWR)){
+		kprintf("TEMPPPP:No Read permission in sys read %d\n", handle->fh_permission);
 		return EBADF;
 	}
 
@@ -78,19 +73,22 @@ int sys_read(userptr_t fd, userptr_t user_buf_ptr, userptr_t buflen,
 	//read the data to the uio
 	struct iovec iov;
 	struct uio kuio;
-	void * kbuf = kmalloc(read_buflen);
-	uio_kinit(&iov, &kuio, kbuf, read_buflen, handle->fh_offset,
+	void * kbuf = kmalloc(read_buflen + 1);
+	uio_kinit(&iov, &kuio, kbuf, read_buflen, 0,
 			UIO_READ);
 	result = VOP_READ(file_vnode, &kuio);
+	((char*)kbuf)[read_buflen]= '\0';
 	if (result) {
+		kprintf("TEMPPPP:ERROR IN READ\n");
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
 		kfree(kbuf);
 		return EIO;
 	}
+	kprintf("TEMPPPP:Bytes read are %c , %d\n",((char*)kbuf)[0],  buflen - kuio.uio_resid );
 
 	// copy the read data to the userspace
-	result = copyout(kbuf, user_buf_ptr, kuio.uio_resid);
+	result = copyout(kbuf, user_buf_ptr, buflen - kuio.uio_resid );
 	if (result) {
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
@@ -112,23 +110,20 @@ int sys_read(userptr_t fd, userptr_t user_buf_ptr, userptr_t buflen,
 
 }
 
-int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes,
+int sys_write(int fd, userptr_t user_buf_ptr, int nbytes,
 		int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
-	int write_fd;
-	ssize_t write_nbytes;
-	result = copyin(fd, &write_fd, sizeof(int));
-	result = copyin(nbytes, &write_nbytes, sizeof(ssize_t));
-	if (result) {
-		return result;
-	}
+	int write_fd = fd;
+	ssize_t write_nbytes = nbytes;
+	//kprintf("TEMPPPP:SENT TO WRITE : %d\n",nbytes);
 
 	// get the file table entry for the fd
 	struct filetable_entry* entry = filetable_lookup(curprocess->p_filetable, write_fd);
 	if (entry == NULL) {
+			kprintf("Invalid fd passed to write");
 			return EBADF;
 	}
 
@@ -136,8 +131,9 @@ int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes,
 	struct vnode* file_vnode = handle->fh_vnode;
 
 	//check if the file handle has write has permissions
-	if ((handle->fh_permission & O_WRONLY)
-						|| (handle->fh_permission & O_RDWR)){
+	if (!(handle->fh_permission & O_WRONLY)
+						&& !(handle->fh_permission & O_RDWR)){
+		kprintf("Invalid write permission on file for write\n");
 		return EBADF;
 	}
 
@@ -145,18 +141,20 @@ int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes,
 	lock_acquire(file_vnode->vn_opslock);
 
 	// copy the data to the kernel space
-	void *kbuf = kmalloc(write_nbytes);
+	void *kbuf = kmalloc(write_nbytes + 1);
 	if ((result = copyin(user_buf_ptr, kbuf, write_nbytes)) != 0) {
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
 		kfree(kbuf);
 		return EFAULT;
 	}
+	((char*)kbuf)[write_nbytes] = '\0';
+
 
 	// write the data from the uio to the file
 	struct iovec iov;
 	struct uio kuio;
-	uio_kinit(&iov, &kuio, &kbuf, write_nbytes, handle->fh_offset,
+	uio_kinit(&iov, &kuio, &kbuf, write_nbytes, 0,
 			UIO_WRITE);
 	result = VOP_WRITE(file_vnode, &kuio);
 	if (result) {
@@ -165,10 +163,12 @@ int sys_write(userptr_t fd, userptr_t user_buf_ptr, userptr_t nbytes,
 		kfree(kbuf);
 		return result;
 	}
+	//kprintf("TEMPPPP:AFter write = %s\n", (char*)kbuf);
 
 	// update the offset in the file table
 	*retval = kuio.uio_resid;
 	handle->fh_offset += *retval;
+
 
 	// update the retval to indicate the number of bytes read
 	// release lock on the vnode
