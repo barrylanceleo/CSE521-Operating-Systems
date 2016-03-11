@@ -15,28 +15,66 @@
 #include <syscall.h>
 #include <copyinout.h>
 #include <limits.h>
+#include <mips/trapframe.h>
+#include <addrspace.h>
 
 int sys_getpid(pid_t* retval) {
 	*retval = curproc->p_pid;
 	return 0;
 }
 
-int sys_fork(struct trapframe* tf, pid_t* pid) {
-	int ret = 0;
+int sys_fork(struct trapframe* tf, pid_t* retval) {
+	int error;
+	struct proc *child_proc = proc_create_runprogram("child process");
+	struct trapframe* child_trapframe = NULL;
+
+	error = as_copy(curproc->p_addrspace, &(child_proc->p_addrspace));
+	if(error){
+		*retval = -1;
+		return error;
+	}
+	child_trapframe = (struct trapframe*)kmalloc(sizeof(struct trapframe));
+	if(child_trapframe == NULL){
+		*retval = -1;
+		return ENOMEM;
+	}
+	*child_trapframe = *tf;
+	kprintf("TEMPPPP:PPID IS %d\n", curproc->p_pid);
+
+	error = thread_fork("Child proc", child_proc, enter_forked_process,
+		(struct trapframe *)child_trapframe,(unsigned long)child_proc->p_addrspace);
+
+	if(error){
+		kfree(child_trapframe);
+		as_destroy(child_proc->p_addrspace);
+		*retval = -1;
+		return error;
+	}
+
+	*retval = child_proc->p_pid;
+	return 0;
+/*	int ret = 0;
 	struct proc* parent = curproc;
-	struct proc* child = proc_createchild(parent);
+	kprintf("TEMPPPP:HERE FORK\n");
+	struct addrspace *as;
+	struct proc* child = proc_createchild(parent, &as);
 	if (child == NULL) {
 		return ENOMEM;
 	}
+	struct trapframe* copytf =  kmalloc(sizeof(struct trapframe));
+	*copytf = *tf;
+	kprintf("TEMPPPP:after create child\n");
 	struct thread* currentthread = curthread;
 	ret = thread_fork(currentthread->t_name, child, enter_forked_process,
-			(void*) &tf, (unsigned long) 1);
+			(void*) copytf, (unsigned long) as);
+
 	if (ret) {
 		proc_destroy(child);
 		return ENOMEM;
 	}
+	kprintf("TEMPPPP:after thread fork\n");
 	*pid = child->p_pid;
-	return ret;
+	return ret;*/
 }
 
 static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc) {
@@ -60,6 +98,7 @@ static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc)
 int sys_execv(userptr_t program, userptr_t args) {
 	int result;
 
+	kprintf("TEMPPPP:EXECV CALLED MAN!!!\n");
 	char k_progname[FILE_NAME_MAXLEN];
 	if ((result = copyinstr(program, k_progname, FILE_NAME_MAXLEN, 0)) != 0) {
 		return result;

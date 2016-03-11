@@ -97,7 +97,7 @@ struct proc {
 
 struct file_handle
 {
-	int fh_offset;
+	off_t fh_offset;
 	int fh_permission;
 	struct vnode* fh_vnode;
 };
@@ -118,8 +118,8 @@ void proc_bootstrap(void);
 /* Create a fresh process for use by runprogram(). */
 struct proc *proc_create_runprogram(const char *name);
 
-/* Create a child process for the passed process. */
-struct proc *proc_createchild(struct proc* process);
+/* Create a child process for the passed process. We pass address space, dont ask why*/
+struct proc *proc_createchild(struct proc* process, struct addrspace** as);
 
 /* Destroy a process. */
 void proc_destroy(struct proc *proc);

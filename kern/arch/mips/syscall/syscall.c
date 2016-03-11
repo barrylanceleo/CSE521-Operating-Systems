@@ -35,6 +35,8 @@
 #include <thread.h>
 #include <current.h>
 #include <syscall.h>
+#include <addrspace.h>
+#include <proc.h>
 
 /*
  * System call dispatcher.
@@ -96,6 +98,8 @@ void syscall(struct trapframe *tf) {
 
 	retval = 0;
 
+
+	off_t pos, new_pos;
 	switch (callno) {
 	case SYS_reboot:
 		err = sys_reboot(tf->tf_a0);
@@ -106,8 +110,8 @@ void syscall(struct trapframe *tf) {
 		break;
 
 	case SYS_open:
-		err = sys_open((userptr_t) tf->tf_a0, (userptr_t) tf->tf_a1,
-				(userptr_t) tf->tf_a2, &retval);
+		err = sys_open((userptr_t) tf->tf_a0, (int) tf->tf_a1,
+				(int) tf->tf_a2, &retval);
 		break;
 
 	case SYS_read:
@@ -120,8 +124,18 @@ void syscall(struct trapframe *tf) {
 				(int) tf->tf_a2, &retval);
 		break;
 	case SYS_lseek:
-		err = sys_lseek((userptr_t) tf->tf_a0, (userptr_t) tf->tf_a1,
-				(userptr_t) tf->tf_a2, &retval);
+
+		pos = (((off_t)tf->tf_a2 << 32) | tf->tf_a3);
+		err = sys_lseek((userptr_t) tf->tf_a0, pos,
+				(userptr_t)(tf->tf_sp+16), &new_pos);
+
+		if (err == 0)
+		{
+			retval = (int32_t)(new_pos >> 32);
+			tf->tf_v1 = (int32_t)(new_pos & 0xFFFFFFFF);
+		}
+
+
 		break;
 
 	case SYS_close:
@@ -194,11 +208,32 @@ void syscall(struct trapframe *tf) {
  * Thus, you can trash it and do things another way if you prefer.
  */
 void enter_forked_process(void *param, unsigned long argc) {
-	if (argc != 1 ) {
-		panic("Argument count needs to be 1 for enter_forked_process ");
-	}
+	struct trapframe *tf, temp_tf;
+
+	tf = (struct trapframe*) param;
+	tf->tf_a3 = 0;
+	tf->tf_v0 = 0;
+	tf->tf_epc += 4;
+
+	curproc->p_addrspace = (struct addrspace*) argc;
+	as_activate();
+
+	temp_tf = *tf;
+	kprintf("child_fork_entry: trapframe: %p, stack: %p \n",(void *)&temp_tf, curthread->t_stack);
+	mips_usermode(&temp_tf);
+	return;
+/*	kprintf("TEMPPPP:Address space is ####%p###%p####\n",(void*)argc, curthread->t_stack);
+	setflag();
+	kprintf("TEMPPPP:Inside enter forked process\n");
 	struct trapframe* tf = (struct trapframe*) param;
 	struct trapframe child_tf = *tf;
 	child_tf.tf_v0 = 0; // child process return value for fork
-	mips_usermode(&child_tf);
+	child_tf.tf_epc += 4; // next instruction in user execution
+	child_tf.tf_a3 = 0;
+	curproc->p_addrspace = (struct addrspace*) argc;
+	as_activate();
+	kprintf("TEMPPPP:trap frame is ####%p###\n",(void*)&child_tf);
+	kprintf("TEMPPPP:entering user mode\n");
+	kfree(tf);
+	mips_usermode(&child_tf);*/
 }

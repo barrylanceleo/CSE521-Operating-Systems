@@ -1007,6 +1007,8 @@ subpage_kmalloc(size_t sz
 		/* Out of memory. */
 		kprintf("kmalloc: Subpage allocator couldn't get a page\n");
 		static int already_printed = 0;
+		int *a = 0;
+		*a =100;
 		if(!already_printed) {
 			already_printed = 1;
 			secprintf(SECRET, "out of memory", "kmalloc");

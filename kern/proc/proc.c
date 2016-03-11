@@ -218,8 +218,12 @@ proc_create_runprogram(const char *name) {
 
 	newproc->p_addrspace = NULL;
 
+	if(newproc->p_fdcounter == 0) {
 	/* Create the standard fds */
 	proc_openstandardfds(newproc);
+	} else {
+		newproc->p_ppid = curproc->p_pid;
+	}
 
 	/*
 	 * Lock the current process to copy its current directory.
@@ -236,7 +240,7 @@ proc_create_runprogram(const char *name) {
 	return newproc;
 }
 
-struct proc* proc_createchild(struct proc* parent) {
+struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 	struct proc* child = proc_create(parent->p_name);
 	if (child == NULL) {
 		return NULL;
@@ -250,8 +254,8 @@ struct proc* proc_createchild(struct proc* parent) {
 	child->p_fdcounter = parent->p_fdcounter;
 
 	/** process table */
-	child->p_ppid = parent->p_pid;
 	addTo_processtable(child);
+	child->p_ppid = parent->p_pid;
 
 	/** cwd */
 	/*
@@ -267,7 +271,7 @@ struct proc* proc_createchild(struct proc* parent) {
 	spinlock_release(&(parent->p_lock));
 
 	/** address space */
-	as_copy(parent->p_addrspace, &child->p_addrspace);
+	as_copy(parent->p_addrspace, as);
 
 	return child;
 }
@@ -380,7 +384,7 @@ static int filetable_addfd(struct proc* process, struct filetable_entry* entry) 
 	return result;
 }
 
-static void filetable_addentryforvnode(struct proc* process, int permission,
+static int filetable_addentryforvnode(struct proc* process, int permission,
 		struct vnode* vn) {
 
 	struct file_handle* handle = (struct file_handle*) kmalloc(
@@ -393,9 +397,10 @@ static void filetable_addentryforvnode(struct proc* process, int permission,
 			sizeof(struct filetable_entry));
 	entry->ft_fd = proc_generatefd(process);
 	entry->ft_handle = handle;
+	kprintf("TEMPPPP:Fd number is %d\n", entry->ft_fd);
 
 	filetable_addfd(process, entry);
-
+	return entry->ft_fd;
 }
 
 static struct vnode* console_vnode = NULL;
@@ -423,22 +428,19 @@ int proc_openstandardfds(struct proc* process) {
 }
 
 int filetable_addentry(struct proc* process, char* filename, int flags,
-		int permission) {
+		int mode) {
 	struct vnode* vn;
 	int result = 0;
-
-	kprintf("TEMPPPP: Did this just break here for %s?\n", filename);
-	int* a = 0x0;
-	*a = 10;
-	if ((result = vfs_open(filename, flags, permission, &vn)) != 0) {
+	mode = 0;
+	kprintf("TEMPPPP: Did this just break here for %s and %d , %d?\n", filename, flags, mode);
+	if ((result = vfs_open(filename, flags, mode, &vn)) != 0) {
 		kprintf("TEMPPPP: Yep, %d\n", result);
 		return result;
 	}
 	kprintf("TEMPPPP: No\n");
 
-	filetable_addentryforvnode(process, permission, vn);
+	return filetable_addentryforvnode(process, flags, vn);
 
-	return 0;
 }
 
 static int getftarrayindex(struct array* ft, int fd) {

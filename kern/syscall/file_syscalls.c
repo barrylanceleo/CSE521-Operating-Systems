@@ -16,13 +16,12 @@
 #include <kern/fcntl.h>
 #include <kern/seek.h>
 
-int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode,
+int sys_open(userptr_t file_name, int arguments, int mode,
 		int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
-
 	// copy the file_name to the kernel space
 	char k_filename[FILE_NAME_MAXLEN + 1];
 	if ((result = copyinstr(file_name, k_filename, FILE_NAME_MAXLEN + 1, 0))
@@ -30,23 +29,15 @@ int sys_open(userptr_t file_name, userptr_t arguments, userptr_t mode,
 		return result;
 	}
 
-	int k_arguments;
-	result = copyin(arguments, &k_arguments, sizeof(int));
-
-	mode_t k_mode;
-	result = copyin(mode, &k_mode, sizeof(mode_t));
-
 	// insert file handle to the filetable and get the fd
-	*retval = filetable_addentry(curprocess, k_filename, k_arguments, k_mode);
-
+	*retval = filetable_addentry(curprocess, k_filename, arguments, mode);
 	return result;
 }
 
-int sys_read(int fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
+int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
-	int read_fd = fd;
 	size_t read_buflen = buflen;
 
 	// get the file table entry for the fd
@@ -68,60 +59,58 @@ int sys_read(int fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 		return EBADF;
 	}
 
+	if(read_ft_entry->ft_fd > 2){
+			kprintf("TEMPPPP:Read from fd: %d at offset: %llu\n", read_ft_entry->ft_fd, handle->fh_offset);
+	}
+
 	// lock the operation
 	lock_acquire(file_vnode->vn_opslock);
 
 	//read the data to the uio
 
-	void * kbuf = kmalloc(read_buflen + 1);
 	// write the data from the uio to the file
 	struct iovec iov;
 	struct uio kuio;
 	iov.iov_ubase = user_buf_ptr;
-	iov.iov_len = buflen; // length of the memory space
+	iov.iov_len = read_buflen; // length of the memory space
 	kuio.uio_iov = &iov;
 	kuio.uio_iovcnt = 1;
-	kuio.uio_resid = buflen; // amount to read from the file
+	kuio.uio_resid = read_buflen; // amount to read from the file
 	kuio.uio_offset = read_ft_entry->ft_handle->fh_offset;
 	kuio.uio_segflg = UIO_USERSPACE;
 	kuio.uio_rw = UIO_READ;
 	kuio.uio_space = curproc->p_addrspace;
 	result = VOP_READ(file_vnode, &kuio);
-	((char*) kbuf)[read_buflen] = '\0';
 	if (result) {
 		kprintf("TEMPPPP:ERROR IN READ\n");
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
-		kfree(kbuf);
 		return EIO;
 	}
 	if (result) {
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
-		kfree(kbuf);
 		return EFAULT;
 	}
 
 	// update the offset in the file table
-	handle->fh_offset += buflen - kuio.uio_resid;
+	handle->fh_offset += read_buflen - kuio.uio_resid;
 
 	// update the retval to indicate the number of bytes read
-	*retval = buflen - kuio.uio_resid;
+	*retval = read_buflen - kuio.uio_resid;
 
 	// release lock on the vnode
 	lock_release(file_vnode->vn_opslock);
 
-	kfree(kbuf);
 	return result;
 
 }
 
-int sys_write(int fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval) {
+int sys_write(int write_fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
-	int write_fd = fd;
 	ssize_t write_nbytes = nbytes;
 
 	// get the file table entry for the fd
@@ -136,61 +125,54 @@ int sys_write(int fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval) {
 	struct vnode* file_vnode = handle->fh_vnode;
 
 	//check if the file handle has write has permissions
-	if (!(handle->fh_permission & O_WRONLY)
-			&& !(handle->fh_permission & O_RDWR)) {
+	if (!(handle->fh_permission & 3)) {
 		kprintf("Invalid write permission on file for write\n");
 		return EBADF;
 	}
 
+	if(entry->ft_fd > 2){
+		kprintf("TEMPPPP:Write to fd: %d at offset: %llu\n", entry->ft_fd, handle->fh_offset);
+	}
+
+
 	// lock the operation
 	lock_acquire(file_vnode->vn_opslock);
-
-	// copy the data to the kernel space
-	void *kbuf = kmalloc(write_nbytes + 1);
 
 	// write the data from the uio to the file
 	struct iovec iov;
 	struct uio kuio;
 	iov.iov_ubase = user_buf_ptr;
-	iov.iov_len = nbytes; // length of the memory space
+	iov.iov_len = write_nbytes; // length of the memory space
 	kuio.uio_iov = &iov;
 	kuio.uio_iovcnt = 1;
-	kuio.uio_resid = nbytes; // amount to read from the file
+	kuio.uio_resid = write_nbytes; // amount to read from the file
 	kuio.uio_offset = entry->ft_handle->fh_offset;
 	kuio.uio_segflg = UIO_USERSPACE;
 	kuio.uio_rw = UIO_WRITE;
-	kuio.uio_space = curproc->p_addrspace;
+	kuio.uio_space = curprocess->p_addrspace;
 	result = VOP_WRITE(file_vnode, &kuio);
 	if (result) {
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
-		kfree(kbuf);
 		return result;
 	}
 
 	// update the offset in the file table
-	*retval = nbytes - kuio.uio_resid;
+	*retval = write_nbytes - kuio.uio_resid;
 	handle->fh_offset += *retval;
 
 	// update the retval to indicate the number of bytes read
 	// release lock on the vnode
 	lock_release(file_vnode->vn_opslock);
-	kfree(kbuf);
 	return result;
 }
 
 int sys_close(userptr_t fd, int32_t* retval) {
 
-	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
-	int clos_fd;
-	result = copyin(fd, &clos_fd, sizeof(ssize_t));
-	if (result) {
-		return result;
-	}
 
-	if (filetable_remove(curprocess->p_filetable, clos_fd) == -1) {
+	if (filetable_remove(curprocess->p_filetable, (int)fd) == -1) {
 		return EBADF;
 	}
 
@@ -198,14 +180,12 @@ int sys_close(userptr_t fd, int32_t* retval) {
 	return 0;
 }
 
-int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval) {
+int sys_lseek(userptr_t fd, off_t seek_pos, userptr_t whence, off_t* retval) {
 	int result = 0;
 	*retval = -1;
 	struct proc* curprocess = curproc;
-	int seek_fd, seek_whence;
-	off_t seek_pos;
-	result = copyin(fd, &seek_fd, sizeof(int));
-	result = copyin(pos, &seek_pos, sizeof(off_t));
+	int seek_fd = (int)fd;
+	int seek_whence;
 	result = copyin(whence, &seek_whence, sizeof(int));
 	if (result) {
 		return result;
@@ -231,6 +211,7 @@ int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval) {
 	// seek based on the value of whence
 	off_t new_pos;
 	struct stat statbuf;
+	kprintf("TEMPPPP: Whence is %d\n", seek_whence);
 	switch (seek_whence) {
 	case SEEK_SET:
 		new_pos = seek_pos;
@@ -240,7 +221,8 @@ int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval) {
 		handle->fh_offset = new_pos;
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
-		return new_pos;
+		*retval = new_pos;
+		return 0;
 
 	case SEEK_CUR:
 		new_pos = handle->fh_offset + seek_pos;
@@ -250,18 +232,22 @@ int sys_lseek(userptr_t fd, userptr_t pos, userptr_t whence, int32_t* retval) {
 		handle->fh_offset = new_pos;
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
-		return new_pos;
+		*retval = new_pos;
+		return 0;
 
 	case SEEK_END:
 		VOP_STAT(file_vnode, &statbuf);
 		new_pos = statbuf.st_size + seek_pos;
+		kprintf("TEMPPPP: Seek End %llu\n", new_pos);
+
 		if (new_pos < 0) {
 			return EINVAL;
 		}
 		handle->fh_offset = new_pos;
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
-		return new_pos;
+		*retval = new_pos;
+		return 0;
 
 	default:
 		// release lock on the vnode

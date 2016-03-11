@@ -16,7 +16,7 @@ static struct process_table {
 int init_processtable() {
 	kprintf("TEMPPPP: PROCESSTABLE CREATE\n");
 	s_processtable.pt_processes = array_create();
-	s_processtable.pt_pidcounter = 0;
+	s_processtable.pt_pidcounter = 2;
 	s_processtable.pt_freepids = array_create();
 	return 0;
 }

@@ -94,6 +94,8 @@ struct trapframe {
 #define EX_CPU    11   /* Coprocessor unusable */
 #define EX_OVF    12   /* Arithmetic overflow */
 
+
+void setflag(void);
 /*
  * Function to enter user mode. Does not return. The trapframe must
  * be on the thread's own stack or bad things will happen.

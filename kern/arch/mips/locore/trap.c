@@ -39,6 +39,7 @@
 #include <vm.h>
 #include <mainbus.h>
 #include <syscall.h>
+#include <proc.h>
 
 
 /* in exception-*.S */
@@ -116,6 +117,11 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		code, sig, trapcodenames[code], epc, vaddr);
 	panic("I don't know how to handle this\n");
 }
+static volatile int flagggg = 0;
+
+void setflag() {
+	flagggg = 1;
+}
 
 /*
  * General trap (exception) handling function for mips.
@@ -144,6 +150,9 @@ mips_trap(struct trapframe *tf)
 
 	/* Make sure we haven't run off our stack */
 	if (curthread != NULL && curthread->t_stack != NULL) {
+		if((vaddr_t)tf < (vaddr_t)curthread->t_stack) {
+				kprintf("TEMPPPP:Inside trap space is ####%p###%p####%d, %d\n",(void*)tf, curthread->t_stack, curproc->p_pid, curproc->p_ppid);
+		}
 		KASSERT((vaddr_t)tf > (vaddr_t)curthread->t_stack);
 		KASSERT((vaddr_t)tf < (vaddr_t)(curthread->t_stack
 						+ STACK_SIZE));
@@ -434,5 +443,6 @@ enter_new_process(int argc, userptr_t argv, userptr_t env,
 	tf.tf_a2 = (vaddr_t)env;
 	tf.tf_sp = stack;
 
+	kprintf("TEMPPPP: entering user mode\n");
 	mips_usermode(&tf);
 }
