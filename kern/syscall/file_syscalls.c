@@ -20,13 +20,28 @@ int sys_open(userptr_t file_name, int arguments, int mode, int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
+
+	// verify if the flag is valid
+
+	if((arguments | O_EXCL) && !(arguments | O_CREAT))
+	{
+		*retval = result;
+		return result;
+	}
+
+
 	struct proc* curprocess = curproc;
 	// copy the file_name to the kernel space
 	char k_filename[FILE_NAME_MAXLEN + 1];
 	if ((result = copyinstr(file_name, k_filename, FILE_NAME_MAXLEN + 1, 0))
 			!= 0) {
+		kprintf("\nTEMPPPP:OPEN Failed k_filename: %s "
+				"arguments: %d mode %d \n", k_filename, arguments, mode);
+
+		*retval = result;
 		return result;
 	}
+
 
 	// insert file handle to the filetable and get the fd
 	*retval = filetable_addentry(curprocess, k_filename, arguments, mode);
