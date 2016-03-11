@@ -155,7 +155,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 //	kprintf("TEMPPPP:runprogram.c Entering new process!!\n");
 
 	/* Warp to user mode. */
-	enter_new_process(argc > 0? argc - 1 : 0 /*argc*/, uargv /*userspace addr of argv*/,
+	enter_new_process(argc > 0? argc  : 0 /*argc*/, uargv /*userspace addr of argv*/,
 	NULL /*userspace addr of environment*/, stackptr, entrypoint);
 
 	/* enter_new_process does not return. */
