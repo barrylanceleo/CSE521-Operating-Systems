@@ -52,7 +52,7 @@ main(int argc, char *argv[])
 	i = atoi(argv[1]);
 	j = atoi(argv[2]);
 
-	tprintf("Answer: %d\n", i+j);
+	tprintf("Answer: %d+%d=%d\n", i,j,i+j);
 	char buf[16];
 	snprintf(buf, 16, "%d", i+j);
 	secprintf(SECRET, buf, "/testbin/add");

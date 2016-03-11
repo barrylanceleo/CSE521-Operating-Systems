@@ -85,7 +85,9 @@ int lookup_processtable(int pid, struct proc** process) {
 		return -1;
 	}
 	int index = getarrayindex(pid);
+	kprintf("TEMPPPP:INDEX ISSS %d\n",index);
 	if (index < 0) {
+		*process = 0;
 		return -1;
 	}
 	*process = (struct proc*) array_get(s_processtable.pt_processes, index);

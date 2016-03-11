@@ -44,6 +44,7 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 			curprocess->p_filetable, read_fd);
 
 	if (read_ft_entry == NULL) {
+		kprintf("TEMPPPP:READ 1\n");
 		return EBADF;
 	}
 
@@ -57,14 +58,15 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 		kprintf("TEMPPPP:No Read permission in sys read %d\n",
 				handle->fh_permission);
 */
+		kprintf("TEMPPPP:READ 2\n");
 		return EBADF;
 	}
 
-/*
-	if(read_ft_entry->ft_fd > 2){
+
+	if(read_ft_entry->ft_fd  < 0 || read_ft_entry->ft_fd > 2){
 			kprintf("TEMPPPP:Read from fd: %d at offset: %llu\n", read_ft_entry->ft_fd, handle->fh_offset);
 	}
-*/
+
 
 	// lock the operation
 	lock_acquire(file_vnode->vn_opslock);
@@ -92,6 +94,7 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 	}
 	if (result) {
 		// release lock on the vnode
+		kprintf("TEMPPPP:READ 4\n");
 		lock_release(file_vnode->vn_opslock);
 		return EFAULT;
 	}

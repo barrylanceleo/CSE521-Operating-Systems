@@ -40,6 +40,7 @@
 #include <mainbus.h>
 #include <syscall.h>
 #include <proc.h>
+#include <kern/wait.h>
 
 
 /* in exception-*.S */
@@ -115,7 +116,12 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 
 	kprintf("Fatal user mode trap %u sig %d (%s, epc 0x%x, vaddr 0x%x)\n",
 		code, sig, trapcodenames[code], epc, vaddr);
-	panic("I don't know how to handle this\n");
+	//panic("I don't know how to handle this\n");
+	if(sig){
+		sig = _MKWAIT_SIG(sig);
+		sys__exit(sig);
+	}
+
 }
 static volatile int flagggg = 0;
 

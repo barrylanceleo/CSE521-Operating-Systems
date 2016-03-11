@@ -91,7 +91,7 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc) {
 	userptr_t uarg_iter = uargs;
 	userptr_t uaddress;
-	int count = 0;
+	*argc = 0;
 	char buf[400];//[ARG_MAX];
 	while (uarg_iter != NULL) {
 
@@ -101,12 +101,12 @@ static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc)
 		if(len == 0) {
 			return;
 		}
-		kargv[count] = (char*) kmalloc(sizeof(char) * len);
-		strcpy(kargv[count], buf);
-		count++;
-		uarg_iter++;
+		kargv[*argc] = (char*) kmalloc(sizeof(char) * len);
+		strcpy(kargv[*argc], buf);
+		(*argc)++;
+		uarg_iter+= sizeof(userptr_t);
+
 	}
-	*argc = count;
 }
 
 int sys_execv(userptr_t program, userptr_t args) {
@@ -124,13 +124,37 @@ int sys_execv(userptr_t program, userptr_t args) {
 
 	copyargstokernel(args, argv, &argc);
 
-	runprogram2(progname, argv, argc);
+	if(argc == 0) {
+		runprogram2(progname, NULL, 0);
+	} else {
+		runprogram2(progname, argv, argc);
+	}
 	return result;
+}
+
+static int isParent(pid_t k_pid) {
+	struct proc * p;
+	lookup_processtable(k_pid, &p);
+	if(p == NULL) {
+		return 2;
+	}
+	if(p->p_ppid != curproc->p_pid) {
+		return 1;
+	}
+	return 0;
 }
 
 int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
 	int result = 0;
 	struct proc* targetprocess;
+	switch(isParent(k_pid)) {
+	case 1:
+		*retval = -1;
+		return ECHILD;
+	case 2:
+		*retval = -1;
+		return ESRCH;
+	}
 	lookup_processtable(k_pid, &targetprocess);
 	lock_acquire(targetprocess->p_waitcvlock);
 	while (true) {
@@ -147,7 +171,7 @@ int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
 	return -1; // this code must be unreachable
 }
 
-int sys_waitpid(userptr_t userpid, int  *status, userptr_t options,
+int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 		pid_t* retval) {
 
 	int k_options = (int) options;
@@ -159,10 +183,13 @@ int sys_waitpid(userptr_t userpid, int  *status, userptr_t options,
 
 	pid_t k_pid = (pid_t) userpid;
 	int result = 0;
-	*retval = k_pid;
-	int k_status;
+
+	int k_status = 0;
 	result = k_waitpid(k_pid, &k_status, retval);
-	*status = k_status;
+	k_status = _MKWAIT_EXIT(k_status);
+	copyout(&k_status, status, sizeof(int));
+
+
 	return result;
 
 }
