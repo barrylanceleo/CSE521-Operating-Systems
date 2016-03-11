@@ -166,6 +166,9 @@ int filetable_remove(struct array* ft, int fd);
 /* close the vnode and free memory*/
 void filehandle_destroy (struct file_handle* handle);
 
+int filetable_addfd(struct proc* process, struct filetable_entry* entry);
+
+
 /* run a program*/
 int runprogram2(char *progname, char** argv, unsigned long argc);
 

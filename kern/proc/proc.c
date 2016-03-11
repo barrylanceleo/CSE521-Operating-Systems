@@ -89,29 +89,28 @@ proc_create(const char *name) {
 		kfree(proc->p_name);
 		kfree(proc);
 
-			return NULL;
+		return NULL;
 	}
 	proc->p_waitcvlock = lock_create(name);
 	if (proc->p_waitcvlock == NULL) {
-				kfree(proc->p_name);
-				array_destroy(proc->p_filetable);
-				kfree(proc);
-				return NULL;
+		kfree(proc->p_name);
+		array_destroy(proc->p_filetable);
+		kfree(proc);
+		return NULL;
 	}
 
 	proc->p_waitcv = cv_create(name);
 	if (proc->p_waitcv == NULL) {
-			kfree(proc);
-			return NULL;
+		kfree(proc);
+		return NULL;
 	}
 
 	proc->p_opslock = lock_create(name);
 	if (proc->p_opslock == NULL) {
-			kfree(proc);
-			return NULL;
+		kfree(proc);
+		return NULL;
 	}
 	proc->p_state = PS_RUNNING;
-
 
 	proc->p_returnvalue = -1;
 
@@ -249,9 +248,9 @@ proc_create_runprogram(const char *name) {
 
 	newproc->p_addrspace = NULL;
 
-	if(newproc->p_fdcounter == 0) {
-	/* Create the standard fds */
-	proc_openstandardfds(newproc);
+	if (newproc->p_fdcounter == 0) {
+		/* Create the standard fds */
+		proc_openstandardfds(newproc);
 	} else {
 		newproc->p_ppid = curproc->p_pid;
 	}
@@ -280,8 +279,9 @@ struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 	unsigned int i;
 	// TODO Move this to a separate method
 	for (i = 0; i < array_num(parent->p_filetable); i++) {
-		int s = array_add(child->p_filetable, array_get(parent->p_filetable, i), NULL);
-		if(s == ENOMEM) {
+		int s = array_add(child->p_filetable, array_get(parent->p_filetable, i),
+				NULL);
+		if (s == ENOMEM) {
 			proc_destroy(child);
 			return NULL;
 		}
@@ -289,8 +289,7 @@ struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 	child->p_fdcounter = parent->p_fdcounter;
 
 	/** process table */
-	if(addTo_processtable(child) != 0)
-	{
+	if (addTo_processtable(child) != 0) {
 		return NULL;
 	}
 	child->p_ppid = parent->p_pid;
@@ -310,7 +309,7 @@ struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 
 	/** address space */
 	//as_copy(parent->p_addrspace, as);
-	(void)as;
+	(void) as;
 	return child;
 }
 
@@ -412,10 +411,20 @@ void proc_resetfdcount(struct proc* process) {
 }
 
 int proc_generatefd(struct proc* process) {
-	return process->p_fdcounter++;
+
+	lock_acquire(process->p_opslock);
+
+	int new_fd = process->p_fdcounter;
+	while (filetable_lookup(process->p_filetable, new_fd + 1) != NULL) {
+		new_fd++;
+	}
+	process->p_fdcounter = new_fd + 1;
+
+	lock_release(process->p_opslock);
+	return new_fd;
 }
 
-static int filetable_addfd(struct proc* process, struct filetable_entry* entry) {
+int filetable_addfd(struct proc* process, struct filetable_entry* entry) {
 	unsigned int index;
 	int result = array_add(process->p_filetable, entry, &index);
 	return result;
@@ -511,7 +520,6 @@ int filetable_remove(struct array* table, int fd) {
 	if (table == 0) {
 		return -1;
 	}
-
 
 	int index = getftarrayindex(table, fd);
 	if (index < 0) {
