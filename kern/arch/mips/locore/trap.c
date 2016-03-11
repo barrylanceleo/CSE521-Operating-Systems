@@ -118,7 +118,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 		code, sig, trapcodenames[code], epc, vaddr);
 	//panic("I don't know how to handle this\n");
 	if(sig){
-		sig = _MKWAIT_SIG(sig);
+		//sig = _MKWAIT_SIG(sig);
 		sys__exit(sig);
 	}
 

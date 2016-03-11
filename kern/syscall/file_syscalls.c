@@ -20,16 +20,41 @@ int sys_open(userptr_t file_name, int arguments, int mode, int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
+
+	// verify if the flag is valid
+
+	if(arguments > 128)  // highest flag is 64
+	{
+		*retval = EINVAL;
+		return EINVAL;
+	}
+
+	if((arguments | O_EXCL) && !(arguments | O_CREAT))
+	{
+		*retval = EINVAL;
+		return EINVAL;
+	}
+
 	struct proc* curprocess = curproc;
 	// copy the file_name to the kernel space
 	char k_filename[FILE_NAME_MAXLEN + 1];
 	if ((result = copyinstr(file_name, k_filename, FILE_NAME_MAXLEN + 1, 0))
 			!= 0) {
+		*retval = result;
 		return result;
 	}
 
 	// insert file handle to the filetable and get the fd
-	*retval = filetable_addentry(curprocess, k_filename, arguments, mode);
+	int fd = filetable_addentry(curprocess, k_filename, arguments, mode);
+
+	if(fd < 0)
+	{
+		*retval = fd;
+		return fd;
+
+	}
+
+	*retval = fd;
 	return result;
 }
 
@@ -52,13 +77,11 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 	struct vnode* file_vnode = handle->fh_vnode;
 
 	//check if the file handle has read permission
-	if (!((handle->fh_permission & 0) == O_RDONLY)
-			&& !(handle->fh_permission & O_RDWR)) {
-/*
+	if (!((handle->fh_permission & 3) == O_RDONLY || (handle->fh_permission & 3) == O_RDWR))
+	{
+
 		kprintf("TEMPPPP:No Read permission in sys read %d\n",
 				handle->fh_permission);
-*/
-		kprintf("TEMPPPP:READ 2\n");
 		return EBADF;
 	}
 
@@ -90,13 +113,7 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 		kprintf("TEMPPPP:ERROR IN READ\n");
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
-		return EIO;
-	}
-	if (result) {
-		// release lock on the vnode
-		kprintf("TEMPPPP:READ 4\n");
-		lock_release(file_vnode->vn_opslock);
-		return EFAULT;
+		return result;
 	}
 
 	// update the offset in the file table

@@ -19,6 +19,7 @@
 #include <mips/trapframe.h>
 #include <addrspace.h>
 #include <kern/wait.h>
+#include "../include/types.h"
 
 int sys_getpid(pid_t* retval) {
 	*retval = curproc->p_pid;
@@ -200,6 +201,7 @@ int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 	result = k_waitpid(k_pid, &k_status, retval);
 	k_status = _MKWAIT_EXIT(k_status);
 	copyout(&k_status, status, sizeof(int));
+	kprintf("TEMPPPP WaitPid for %d Completed, Status:%d retval: %d \n", k_pid, k_status, *retval);
 
 
 	return result;

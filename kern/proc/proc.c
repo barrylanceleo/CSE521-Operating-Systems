@@ -468,7 +468,9 @@ int filetable_addentry(struct proc* process, char* filename, int flags,
 	struct vnode* vn;
 	int result = 0;
 	mode = 0;
-	if ((result = vfs_open(filename, flags, mode, &vn)) != 0) {
+	result = vfs_open(filename, flags, mode, &vn);
+	if (result) {
+		kprintf("\nTEMPPPP:OPEN Failed in vfsopen error %d", result);
 		return result;
 	}
 
