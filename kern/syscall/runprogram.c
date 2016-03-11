@@ -87,10 +87,10 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 	/* Open the file. */
 	result = vfs_open(progname, O_RDONLY, 0, &v);
 	if (result) {
-		kprintf("TEMPPPP:runprogram.c vfs open failed!!\n");
+//		kprintf("TEMPPPP:runprogram.c vfs open failed!!\n");
 		return result;
 	}
-	kprintf("TEMPPPP:runprogram.c after vfs open!!\n");
+//	kprintf("TEMPPPP:runprogram.c after vfs open!!\n");
 
 	/* We should be a new process. */
 	KASSERT(proc_getas() == NULL);
@@ -110,7 +110,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 
 	as_activate();
 
-	kprintf("TEMPPPP:runprogram.c after address space activation!!\n");
+//	kprintf("TEMPPPP:runprogram.c after address space activation!!\n");
 
 	/* Load the executable. */
 	result = load_elf(v, &entrypoint);
@@ -120,7 +120,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 		return result;
 	}
 
-	kprintf("TEMPPPP:runprogram.c after elf load!!\n");
+//	kprintf("TEMPPPP:runprogram.c after elf load!!\n");
 
 	/* Done with the file now. */
 	vfs_close(v);
@@ -133,7 +133,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 	}
 	//userptr_t uargv = (userptr_t)stackptr;
 	//copyoutargv(uargv, argv, argc);
-	kprintf("TEMPPPP:runprogram.c Entering new process!!\n");
+//	kprintf("TEMPPPP:runprogram.c Entering new process!!\n");
 
 	/* Warp to user mode. */
 	enter_new_process(0 /*argc*/, NULL/*userspace addr of argv*/,

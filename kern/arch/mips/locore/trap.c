@@ -151,8 +151,8 @@ mips_trap(struct trapframe *tf)
 	/* Make sure we haven't run off our stack */
 	if (curthread != NULL && curthread->t_stack != NULL) {
 		if((vaddr_t)tf < (vaddr_t)curthread->t_stack) {
-				kprintf("TEMPPPP:Inside trap space: tf %p t_stack%p stack_size %d\n",
-						(void*)tf, curthread->t_stack, STACK_SIZE);
+//				kprintf("TEMPPPP:Inside trap space: tf %p t_stack%p stack_size %d\n",
+//						(void*)tf, curthread->t_stack, STACK_SIZE);
 		}
 		KASSERT((vaddr_t)tf > (vaddr_t)curthread->t_stack);
 //		kprintf("TEMPPPP:Inside trap space: tf %p t_stack%p stack_size %d\n",
@@ -447,6 +447,6 @@ enter_new_process(int argc, userptr_t argv, userptr_t env,
 	tf.tf_a2 = (vaddr_t)env;
 	tf.tf_sp = stack;
 
-	kprintf("TEMPPPP: entering user mode\n");
+//	kprintf("TEMPPPP: entering user mode\n");
 	mips_usermode(&tf);
 }

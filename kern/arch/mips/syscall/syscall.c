@@ -162,7 +162,7 @@ void syscall(struct trapframe *tf) {
 				(userptr_t) tf->tf_a2, &retval);
 		break;
 	case SYS__exit:
-		kprintf("TEMPPPP:Exit has been called!	\n");
+		//kprintf("TEMPPPP:Exit has been called!	\n");
 		err = sys__exit((int) tf->tf_a0);
 		break;
 		/* Add stuff here */
@@ -224,7 +224,7 @@ void enter_forked_process(void *data1, unsigned long data2) {
 	tfnew.tf_a3 = 0;
 	tfnew.tf_v0 = 0;
 	tfnew.tf_epc = tf->tf_epc + 4;
-	kprintf("TEMPPPP:Address space is \n%p\n%p\n",&tfnew, curthread->t_stack);
+//	kprintf("TEMPPPP:Address space is \n%p\n%p\n",&tfnew, curthread->t_stack);
 	kfree(data1);
 	lock_release(curproc->p_opslock);
 	mips_usermode(&tfnew);

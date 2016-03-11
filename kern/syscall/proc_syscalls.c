@@ -46,7 +46,7 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 		return ENOMEM;
 	}
 	*child_tf = *tf;
-	kprintf("TEMPPPP:In fork Child PID IS %d\n", child->p_pid);
+//	kprintf("TEMPPPP:In fork Child PID IS %d\n", child->p_pid);
 
 	lock_acquire(child->p_opslock);
 	result = thread_fork("Child proc", child, enter_forked_process,
@@ -108,7 +108,7 @@ static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc)
 int sys_execv(userptr_t program, userptr_t args) {
 	int result;
 
-	kprintf("TEMPPPP:EXECV CALLED MAN!!!\n");
+//	kprintf("TEMPPPP:EXECV CALLED MAN!!!\n");
 	char k_progname[FILE_NAME_MAXLEN];
 	if ((result = copyinstr(program, k_progname, FILE_NAME_MAXLEN, 0)) != 0) {
 		return result;
@@ -131,7 +131,7 @@ int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
 	lock_acquire(targetprocess->p_waitcvlock);
 	while (true) {
 		if (targetprocess->p_state == PS_COMPLETED) {
-			kprintf("TEMPPPP PS Completed:\n");
+//			kprintf("TEMPPPP PS Completed:\n");
 			*status = targetprocess->p_returnvalue;
 			lock_release(targetprocess->p_waitcvlock);
 			proc_destroy(targetprocess);
@@ -170,7 +170,7 @@ int sys__exit(int exitcode) {
 	lock_acquire(curprocess->p_waitcvlock);
 	curprocess->p_returnvalue = exitcode;
 	curprocess->p_state = PS_COMPLETED;
-	kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
+//	kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);
 	lock_release(curprocess->p_waitcvlock);
 

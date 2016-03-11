@@ -53,8 +53,10 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 	//check if the file handle has read permission
 	if (!((handle->fh_permission & 0) == O_RDONLY)
 			&& !(handle->fh_permission & O_RDWR)) {
+/*
 		kprintf("TEMPPPP:No Read permission in sys read %d\n",
 				handle->fh_permission);
+*/
 		return EBADF;
 	}
 
@@ -169,7 +171,7 @@ int sys_write(int write_fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval)
 }
 
 int sys_close(userptr_t fd, int32_t* retval) {
-	kprintf("TEMPPPP:INSIDE CLOSE\n");
+/*	kprintf("TEMPPPP:INSIDE CLOSE\n");*/
 	*retval = -1;
 	struct proc* curprocess = curproc;
 

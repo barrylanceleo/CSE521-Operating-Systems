@@ -448,18 +448,18 @@ int proc_openstandardfds(struct proc* process) {
 				process->p_fdcounter);
 	}
 	if (console_vnode == NULL) {
-		kprintf("TEMPPPP: CREATING STANDARD FDS\n");
+//		kprintf("TEMPPPP: CREATING STANDARD FDS\n");
 		if (vfs_open((char*) "con:", 0, O_RDWR, &console_vnode)) {
 			kprintf("stdin open fail\n");
 			return -1;
 		}
 	}
-	kprintf("TEMPPPP: INSIDE OPEN STANDARD FDs\n");
+	//kprintf("TEMPPPP: INSIDE OPEN STANDARD FDs\n");
 	filetable_addentryforvnode(process, O_RDONLY, console_vnode);
 	filetable_addentryforvnode(process, O_WRONLY, console_vnode);
 	filetable_addentryforvnode(process, O_WRONLY, console_vnode);
-	kprintf("TEMPPPP: END OF OPEN STANDARD FDs, file table size is %d\n",
-			array_num(process->p_filetable));
+	//kprintf("TEMPPPP: END OF OPEN STANDARD FDs, file table size is %d\n",
+	//		array_num(process->p_filetable));
 	return 0;
 }
 
