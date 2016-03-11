@@ -151,9 +151,13 @@ mips_trap(struct trapframe *tf)
 	/* Make sure we haven't run off our stack */
 	if (curthread != NULL && curthread->t_stack != NULL) {
 		if((vaddr_t)tf < (vaddr_t)curthread->t_stack) {
-				kprintf("TEMPPPP:Inside trap space is ####%p###%p####%d, %d\n",(void*)tf, curthread->t_stack, curproc->p_pid, curproc->p_ppid);
+				kprintf("TEMPPPP:Inside trap space: tf %p t_stack%p stack_size %d\n",
+						(void*)tf, curthread->t_stack, STACK_SIZE);
 		}
 		KASSERT((vaddr_t)tf > (vaddr_t)curthread->t_stack);
+//		kprintf("TEMPPPP:Inside trap space: tf %p t_stack%p stack_size %d\n",
+//								(void*)tf, curthread->t_stack, STACK_SIZE);
+//		panic("I'll just panic");
 		KASSERT((vaddr_t)tf < (vaddr_t)(curthread->t_stack
 						+ STACK_SIZE));
 	}

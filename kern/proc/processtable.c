@@ -40,7 +40,7 @@ int addTo_processtable(struct proc* process) {
 	unsigned int idx;
 	process->p_pid = fetchPid();
 	if (array_add(s_processtable.pt_processes, process, &idx)) {
-		result = 1;
+		result = -1;
 	}
 	return result;
 }

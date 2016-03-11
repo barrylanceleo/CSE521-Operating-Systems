@@ -16,8 +16,7 @@
 #include <kern/fcntl.h>
 #include <kern/seek.h>
 
-int sys_open(userptr_t file_name, int arguments, int mode,
-		int32_t* retval) {
+int sys_open(userptr_t file_name, int arguments, int mode, int32_t* retval) {
 
 	int result = 0;
 	*retval = -1;
@@ -59,9 +58,11 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 		return EBADF;
 	}
 
+/*
 	if(read_ft_entry->ft_fd > 2){
 			kprintf("TEMPPPP:Read from fd: %d at offset: %llu\n", read_ft_entry->ft_fd, handle->fh_offset);
 	}
+*/
 
 	// lock the operation
 	lock_acquire(file_vnode->vn_opslock);
@@ -130,9 +131,9 @@ int sys_write(int write_fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval)
 		return EBADF;
 	}
 
-	if(entry->ft_fd > 2){
+/*	if(entry->ft_fd > 2){
 		kprintf("TEMPPPP:Write to fd: %d at offset: %llu\n", entry->ft_fd, handle->fh_offset);
-	}
+	}*/
 
 
 	// lock the operation
@@ -168,7 +169,7 @@ int sys_write(int write_fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval)
 }
 
 int sys_close(userptr_t fd, int32_t* retval) {
-
+	kprintf("TEMPPPP:INSIDE CLOSE\n");
 	*retval = -1;
 	struct proc* curprocess = curproc;
 
@@ -211,7 +212,6 @@ int sys_lseek(userptr_t fd, off_t seek_pos, userptr_t whence, off_t* retval) {
 	// seek based on the value of whence
 	off_t new_pos;
 	struct stat statbuf;
-	kprintf("TEMPPPP: Whence is %d\n", seek_whence);
 	switch (seek_whence) {
 	case SEEK_SET:
 		new_pos = seek_pos;
@@ -238,7 +238,6 @@ int sys_lseek(userptr_t fd, off_t seek_pos, userptr_t whence, off_t* retval) {
 	case SEEK_END:
 		VOP_STAT(file_vnode, &statbuf);
 		new_pos = statbuf.st_size + seek_pos;
-		kprintf("TEMPPPP: Seek End %llu\n", new_pos);
 
 		if (new_pos < 0) {
 			return EINVAL;

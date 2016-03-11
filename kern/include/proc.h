@@ -93,6 +93,9 @@ struct proc {
 
 	enum process_state p_state;
 	int p_returnvalue; // if process completed this variable has its return value
+
+	struct lock* p_opslock; // use to perform any atomic operation
+
 };
 
 struct file_handle

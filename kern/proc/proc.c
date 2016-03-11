@@ -51,6 +51,7 @@
 #include <vfs.h>
 #include <processtable.h>
 #include <kern/fcntl.h>
+#include <kern/errno.h>
 /*
  * The process for the kernel; this holds all the kernel-only threads.
  */
@@ -84,12 +85,33 @@ proc_create(const char *name) {
 
 	/** file table */
 	proc->p_filetable = array_create();
+	if (proc->p_filetable == NULL) {
+		kfree(proc->p_name);
+		kfree(proc);
 
+			return NULL;
+	}
 	proc->p_waitcvlock = lock_create(name);
+	if (proc->p_waitcvlock == NULL) {
+				kfree(proc->p_name);
+				array_destroy(proc->p_filetable);
+				kfree(proc);
+				return NULL;
+	}
 
 	proc->p_waitcv = cv_create(name);
+	if (proc->p_waitcv == NULL) {
+			kfree(proc);
+			return NULL;
+	}
 
+	proc->p_opslock = lock_create(name);
+	if (proc->p_opslock == NULL) {
+			kfree(proc);
+			return NULL;
+	}
 	proc->p_state = PS_RUNNING;
+
 
 	proc->p_returnvalue = -1;
 
@@ -182,6 +204,15 @@ void proc_destroy(struct proc *proc) {
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
+	cv_destroy(proc->p_waitcv);
+	lock_destroy(proc->p_waitcvlock);
+
+	lock_destroy(proc->p_opslock);
+
+	as_deactivate();
+
+	// TODO destroy the AS
+
 	kfree(proc->p_name);
 	kfree(proc);
 }
@@ -249,12 +280,19 @@ struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 	unsigned int i;
 	// TODO Move this to a separate method
 	for (i = 0; i < array_num(parent->p_filetable); i++) {
-		array_add(child->p_filetable, array_get(parent->p_filetable, i), NULL);
+		int s = array_add(child->p_filetable, array_get(parent->p_filetable, i), NULL);
+		if(s == ENOMEM) {
+			proc_destroy(child);
+			return NULL;
+		}
 	}
 	child->p_fdcounter = parent->p_fdcounter;
 
 	/** process table */
-	addTo_processtable(child);
+	if(addTo_processtable(child) != 0)
+	{
+		return NULL;
+	}
 	child->p_ppid = parent->p_pid;
 
 	/** cwd */
@@ -271,8 +309,8 @@ struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 	spinlock_release(&(parent->p_lock));
 
 	/** address space */
-	as_copy(parent->p_addrspace, as);
-
+	//as_copy(parent->p_addrspace, as);
+	(void)as;
 	return child;
 }
 
@@ -380,7 +418,6 @@ int proc_generatefd(struct proc* process) {
 static int filetable_addfd(struct proc* process, struct filetable_entry* entry) {
 	unsigned int index;
 	int result = array_add(process->p_filetable, entry, &index);
-	kprintf("TEMPPPP: Index of element after being added is %d\n", index);
 	return result;
 }
 
@@ -397,7 +434,6 @@ static int filetable_addentryforvnode(struct proc* process, int permission,
 			sizeof(struct filetable_entry));
 	entry->ft_fd = proc_generatefd(process);
 	entry->ft_handle = handle;
-	kprintf("TEMPPPP:Fd number is %d\n", entry->ft_fd);
 
 	filetable_addfd(process, entry);
 	return entry->ft_fd;
@@ -432,12 +468,9 @@ int filetable_addentry(struct proc* process, char* filename, int flags,
 	struct vnode* vn;
 	int result = 0;
 	mode = 0;
-	kprintf("TEMPPPP: Did this just break here for %s and %d , %d?\n", filename, flags, mode);
 	if ((result = vfs_open(filename, flags, mode, &vn)) != 0) {
-		kprintf("TEMPPPP: Yep, %d\n", result);
 		return result;
 	}
-	kprintf("TEMPPPP: No\n");
 
 	return filetable_addentryforvnode(process, flags, vn);
 
@@ -476,6 +509,7 @@ int filetable_remove(struct array* table, int fd) {
 	if (table == 0) {
 		return -1;
 	}
+
 
 	int index = getftarrayindex(table, fd);
 	if (index < 0) {

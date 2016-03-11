@@ -12,6 +12,7 @@
 #include <kern/errno.h>
 #include <processtable.h>
 #include <synch.h>
+#include <cpu.h>
 #include <syscall.h>
 #include <copyinout.h>
 #include <limits.h>
@@ -24,34 +25,43 @@ int sys_getpid(pid_t* retval) {
 }
 
 int sys_fork(struct trapframe* tf, pid_t* retval) {
-	int error;
-	struct proc *child_proc = proc_create_runprogram("child process");
-	struct trapframe* child_trapframe = NULL;
-
-	error = as_copy(curproc->p_addrspace, &(child_proc->p_addrspace));
-	if(error){
-		*retval = -1;
-		return error;
-	}
-	child_trapframe = (struct trapframe*)kmalloc(sizeof(struct trapframe));
-	if(child_trapframe == NULL){
+	int result;
+	struct addrspace *ad;
+	struct proc *child = proc_createchild(curproc, &ad);
+	if(child == NULL)
+	{
 		*retval = -1;
 		return ENOMEM;
 	}
-	*child_trapframe = *tf;
-	kprintf("TEMPPPP:PPID IS %d\n", curproc->p_pid);
 
-	error = thread_fork("Child proc", child_proc, enter_forked_process,
-		(struct trapframe *)child_trapframe,(unsigned long)child_proc->p_addrspace);
-
-	if(error){
-		kfree(child_trapframe);
-		as_destroy(child_proc->p_addrspace);
+	result = as_copy(curproc->p_addrspace, &(child->p_addrspace));
+	if(result){
 		*retval = -1;
-		return error;
+		return ENOMEM;
 	}
 
-	*retval = child_proc->p_pid;
+	struct trapframe* child_tf = (struct trapframe*)kmalloc(sizeof(struct trapframe));
+	if(child_tf == NULL){
+		*retval = -1;
+		return ENOMEM;
+	}
+	*child_tf = *tf;
+	kprintf("TEMPPPP:In fork Child PID IS %d\n", child->p_pid);
+
+	lock_acquire(child->p_opslock);
+	result = thread_fork("Child proc", child, enter_forked_process,
+		(struct trapframe *)child_tf,(unsigned long)(child->p_addrspace));
+
+	if(result){
+		kfree(child_tf);
+		as_destroy(child->p_addrspace);
+		*retval = -1;
+		lock_release(child->p_opslock);
+		return ENOMEM;
+	}
+
+	*retval = child->p_pid;
+	lock_release(child->p_opslock);
 	return 0;
 /*	int ret = 0;
 	struct proc* parent = curproc;
@@ -133,25 +143,22 @@ int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
 	return -1; // this code must be unreachable
 }
 
-int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
+int sys_waitpid(userptr_t userpid, int  *status, userptr_t options,
 		pid_t* retval) {
 
-	int k_options;
-
-	copyin(options, &k_options, sizeof(int));
+	int k_options = (int) options;
 
 	if (k_options != 0) {
 		*retval = -1;
 		return -1;
 	}
 
-	pid_t k_pid;
+	pid_t k_pid = (pid_t) userpid;
 	int result = 0;
-	result = copyin(userpid, &k_pid, sizeof(pid_t));
 	*retval = k_pid;
 	int k_status;
 	result = k_waitpid(k_pid, &k_status, retval);
-	result = copyout(&k_status, status, sizeof(int));
+	*status = k_status;
 	return result;
 
 }
@@ -159,11 +166,11 @@ int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 int sys__exit(int exitcode) {
 	int result = 0;
 	struct proc* curprocess = curproc;
-
+	cpu_irqoff();
 	lock_acquire(curprocess->p_waitcvlock);
 	curprocess->p_returnvalue = exitcode;
 	curprocess->p_state = PS_COMPLETED;
-	kprintf("TEMPPPP: PS Set to completed %d\n", exitcode);
+	kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);
 	lock_release(curprocess->p_waitcvlock);
 

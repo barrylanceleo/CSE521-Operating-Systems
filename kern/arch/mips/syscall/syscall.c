@@ -37,6 +37,7 @@
 #include <syscall.h>
 #include <addrspace.h>
 #include <proc.h>
+#include <synch.h>
 
 /*
  * System call dispatcher.
@@ -157,7 +158,7 @@ void syscall(struct trapframe *tf) {
 		err = sys_execv((userptr_t) tf->tf_a0, (userptr_t) tf->tf_a1);
 		break;
 	case SYS_waitpid:
-		err = sys_waitpid((userptr_t) tf->tf_a0, (userptr_t) tf->tf_a1,
+		err = sys_waitpid((userptr_t) tf->tf_a0, (int *) tf->tf_a1,
 				(userptr_t) tf->tf_a2, &retval);
 		break;
 	case SYS__exit:
@@ -207,33 +208,25 @@ void syscall(struct trapframe *tf) {
  *
  * Thus, you can trash it and do things another way if you prefer.
  */
-void enter_forked_process(void *param, unsigned long argc) {
-	struct trapframe *tf, temp_tf;
+void enter_forked_process(void *data1, unsigned long data2) {
+	lock_acquire(curproc->p_opslock);
+	struct trapframe *tf, tfnew;
+	struct addrspace * addr;
 
-	tf = (struct trapframe*) param;
-	tf->tf_a3 = 0;
-	tf->tf_v0 = 0;
-	tf->tf_epc += 4;
+	tf = (struct trapframe *) data1;
+	addr = (struct addrspace *) data2;
 
-	curproc->p_addrspace = (struct addrspace*) argc;
+	// Load Address Space of Child and Activate it.
+	curproc->p_addrspace = addr;
 	as_activate();
 
-	temp_tf = *tf;
-	kprintf("child_fork_entry: trapframe: %p, stack: %p \n",(void *)&temp_tf, curthread->t_stack);
-	mips_usermode(&temp_tf);
-	return;
-/*	kprintf("TEMPPPP:Address space is ####%p###%p####\n",(void*)argc, curthread->t_stack);
-	setflag();
-	kprintf("TEMPPPP:Inside enter forked process\n");
-	struct trapframe* tf = (struct trapframe*) param;
-	struct trapframe child_tf = *tf;
-	child_tf.tf_v0 = 0; // child process return value for fork
-	child_tf.tf_epc += 4; // next instruction in user execution
-	child_tf.tf_a3 = 0;
-	curproc->p_addrspace = (struct addrspace*) argc;
-	as_activate();
-	kprintf("TEMPPPP:trap frame is ####%p###\n",(void*)&child_tf);
-	kprintf("TEMPPPP:entering user mode\n");
-	kfree(tf);
-	mips_usermode(&child_tf);*/
+	tfnew = *tf;
+	tfnew.tf_a3 = 0;
+	tfnew.tf_v0 = 0;
+	tfnew.tf_epc = tf->tf_epc + 4;
+	kprintf("TEMPPPP:Address space is \n%p\n%p\n",&tfnew, curthread->t_stack);
+	kfree(data1);
+	lock_release(curproc->p_opslock);
+	mips_usermode(&tfnew);
+
 }

@@ -128,12 +128,15 @@ dowait(int nowait, int pid)
 	}
 	if (pid==0) {
 		/* in the fork in question we were the child; exit */
+		warn("EXITING HEREEE %d\n", getpid());
 		exit(0);
 	}
 
 	if (!nowait) {
 		if (waitpid(pid, &x, 0)<0) {
+			warn("BEFORE ERRX %d\n", getpid());
 			errx(1, "waitpid");
+			warn("AFTER ERRX %d\n", getpid());
 		}
 		else if (WIFSIGNALED(x)) {
 			errx(1, "pid %d: signal %d", pid, WTERMSIG(x));
@@ -213,6 +216,7 @@ test(int nowait)
 
 	// Check if file contents are correct
 	// lseek may not be implemented..so close and reopen
+	warn("before cloooooooooooooose\n");
 	close(fd);
 	fd = open(filename, O_RDONLY);
 	if(fd < 3) {
