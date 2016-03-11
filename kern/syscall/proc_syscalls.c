@@ -38,12 +38,15 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 
 	result = as_copy(curproc->p_addrspace, &(child->p_addrspace));
 	if(result){
+		proc_destroy(child);
 		*retval = -1;
 		return ENOMEM;
 	}
 
 	struct trapframe* child_tf = (struct trapframe*)kmalloc(sizeof(struct trapframe));
 	if(child_tf == NULL){
+		proc_destroy(child);
+		kfree(child_tf);
 		*retval = -1;
 		return ENOMEM;
 	}
@@ -56,9 +59,9 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 
 	if(result){
 		kfree(child_tf);
-		as_destroy(child->p_addrspace);
 		*retval = -1;
 		lock_release(child->p_opslock);
+		proc_destroy(child);
 		return ENOMEM;
 	}
 
