@@ -18,6 +18,7 @@
 #include <limits.h>
 #include <mips/trapframe.h>
 #include <addrspace.h>
+#include <kern/wait.h>
 
 int sys_getpid(pid_t* retval) {
 	*retval = curproc->p_pid;
@@ -91,12 +92,15 @@ static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc)
 	userptr_t uarg_iter = uargs;
 	userptr_t uaddress;
 	int count = 0;
-	char buf[ARG_MAX];
+	char buf[400];//[ARG_MAX];
 	while (uarg_iter != NULL) {
 
 		copyin(uarg_iter, &uaddress, sizeof(char*));
 		size_t len = 0;
-		copyinstr(uaddress, buf, ARG_MAX, &len);
+		copyinstr(uaddress, buf, 400/*ARG_MAX*/, &len);
+		if(len == 0) {
+			return;
+		}
 		kargv[count] = (char*) kmalloc(sizeof(char) * len);
 		strcpy(kargv[count], buf);
 		count++;
@@ -115,7 +119,7 @@ int sys_execv(userptr_t program, userptr_t args) {
 	}
 
 	char* progname = k_progname;
-	char* argv[ARG_MAX];
+	char* argv[200];//[ARG_MAX];
 	unsigned long argc;
 
 	copyargstokernel(args, argv, &argc);
@@ -166,9 +170,8 @@ int sys_waitpid(userptr_t userpid, int  *status, userptr_t options,
 int sys__exit(int exitcode) {
 	int result = 0;
 	struct proc* curprocess = curproc;
-	cpu_irqoff();
 	lock_acquire(curprocess->p_waitcvlock);
-	curprocess->p_returnvalue = exitcode;
+	curprocess->p_returnvalue = _MKWAIT_EXIT(exitcode);
 	curprocess->p_state = PS_COMPLETED;
 //	kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);

@@ -93,7 +93,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 //	kprintf("TEMPPPP:runprogram.c after vfs open!!\n");
 
 	/* We should be a new process. */
-	KASSERT(proc_getas() == NULL);
+	//KASSERT(proc_getas() == NULL);
 
 	/* Create a new address space. */
 	as = as_create();
