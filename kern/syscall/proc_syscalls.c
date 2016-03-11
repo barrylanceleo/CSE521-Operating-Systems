@@ -92,28 +92,31 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 }
 
 static void copyargstokernel(userptr_t uargs, char*** argv, unsigned long* argc) {
+	*argv = (char**)kmalloc(ARG_MAX);
 	char ** kargv = *argv;
+
 	userptr_t uarg_iter = uargs;
 	userptr_t uaddress;
 	*argc = 0;
-	char buf[400];//[ARG_MAX];
+	char buf[1024];//[ARG_MAX];
 	while (uarg_iter != NULL) {
 
 		copyin(uarg_iter, &uaddress, sizeof(char*));
 		size_t len = 0;
-		copyinstr(uaddress, buf, 400/*ARG_MAX*/, &len);
+		copyinstr(uaddress, buf, 1024/*ARG_MAX*/, &len);
 		if(len == 0) {
+			kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
 			return;
 		}
 		kargv[*argc] = (char*) kmalloc(sizeof(char) * len);
 		strcpy(kargv[*argc], buf);
 		(*argc)++;
-		if(*argc == 399) {
+		/*if(*argc == 399) {
 			char** temp = (char**)kmalloc(ARG_MAX*sizeof(char*));
 			*argv = temp;
 			memmove(argv, kargv, sizeof(char*)*(*argc));
 			kargv = *argv;
-		}
+		}*/
 		uarg_iter+= sizeof(userptr_t);
 
 	}
@@ -122,16 +125,14 @@ static void copyargstokernel(userptr_t uargs, char*** argv, unsigned long* argc)
 int sys_execv(userptr_t program, userptr_t args) {
 	int result;
 
-//	kprintf("TEMPPPP:EXECV CALLED MAN!!!\n");
 	char k_progname[FILE_NAME_MAXLEN];
 	if ((result = copyinstr(program, k_progname, FILE_NAME_MAXLEN, 0)) != 0) {
 		return result;
 	}
 
 	char* progname = k_progname;
-	char* sargv[200];//[ARG_MAX];
 	unsigned long argc;
-	char** argv = sargv;
+	char** argv;
 
 	copyargstokernel(args, &argv, &argc);
 
