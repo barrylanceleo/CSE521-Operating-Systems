@@ -91,7 +91,8 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 	return ret;*/
 }
 
-static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc) {
+static void copyargstokernel(userptr_t uargs, char*** argv, unsigned long* argc) {
+	char ** kargv = *argv;
 	userptr_t uarg_iter = uargs;
 	userptr_t uaddress;
 	*argc = 0;
@@ -107,6 +108,12 @@ static void copyargstokernel(userptr_t uargs, char** kargv, unsigned long* argc)
 		kargv[*argc] = (char*) kmalloc(sizeof(char) * len);
 		strcpy(kargv[*argc], buf);
 		(*argc)++;
+		if(*argc == 399) {
+			char** temp = (char**)kmalloc(ARG_MAX*sizeof(char*));
+			*argv = temp;
+			memmove(argv, kargv, sizeof(char*)*(*argc));
+			kargv = *argv;
+		}
 		uarg_iter+= sizeof(userptr_t);
 
 	}
@@ -122,10 +129,11 @@ int sys_execv(userptr_t program, userptr_t args) {
 	}
 
 	char* progname = k_progname;
-	char* argv[200];//[ARG_MAX];
+	char* sargv[200];//[ARG_MAX];
 	unsigned long argc;
+	char** argv = sargv;
 
-	copyargstokernel(args, argv, &argc);
+	copyargstokernel(args, &argv, &argc);
 
 	if(argc == 0) {
 		runprogram2(progname, NULL, 0);

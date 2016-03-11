@@ -46,42 +46,44 @@
 #include <test.h>
 #include <copyinout.h>
 
-static void copyoutargv(userptr_t uargv, char** argv, int argc, vaddr_t* stackptr ) {
+static void copyoutargv(userptr_t uargv, char** argv, int argc,
+		vaddr_t* stackptr) {
 	int i = 0;
-	int offset = 0;
-	for (i=0; i < argc; i++) {
-		int l = strlen(argv[i] + 1);
-		offset += l % 4 ? (l / 4 + 1) : (l / 4 + 2);
+	int offset = (argc + 1)* 4;
+	for (i = 0; i < argc; i++) {
+		int len = (strlen(argv[i]) + 1) / 4 + 1;
+		offset += len * 4;
 	}
-	uargv -= (offset + 1 )*sizeof(char*);
-	*stackptr = (vaddr_t)uargv;
+	*stackptr = (vaddr_t)(uargv - offset); // Dont touch stackptr from here
+	kprintf("TEMPPPP: stackptr = uargv - offset [%p=%p-%d]\n", (void*)*stackptr, uargv,
+			offset);
 
-	userptr_t uargv_iter = uargv;
-	for (i=0; i < argc; i++) {
-		uargv_iter += sizeof(char*);
-	}
-	userptr_t stk_ptr = uargv_iter ;
-	stk_ptr -= sizeof(char*);
-	char buf[5];
-	for (i = argc - 1; i >= 0; i--) {
+	userptr_t address_ptr = (userptr_t)*stackptr;
+	userptr_t buf_ptr = uargv;
+
+	for (i = 0; i < argc; i++) {
 		int strsize = strlen(argv[i]);
-		userptr_t firstblock = uargv_iter;
+		buf_ptr = buf_ptr - (((strsize / 4) + 1) * 4);
+		userptr_t bufstr = buf_ptr;
+		kprintf("TEMPPPP: ptr = addr [%p=>%p] %d\n", (void*)buf_ptr, (void*)address_ptr, i);
+		copyout(&buf_ptr, address_ptr, 4);
+		address_ptr += 4;
+
+		char buf[5];
+		buf[4] = '\0';
 		int j = 0;
 		while (strsize > 0) {
 			for (int k = 0; k < 4; k++) {
 				buf[k] = strsize > 0 ? argv[i][j++] : '\0';
 				strsize--;
 			}
-			kprintf("TEMPPPP:copyout buf = ###%s###\n",buf);
-			copyout(buf, uargv_iter, sizeof(char) * 4);
-			uargv_iter += sizeof(char) * 4;
-			if(strsize == 0) { // exactly divisible by 4
+			kprintf("TEMPPPP: buf = addr [%s=>%p]\n", buf, (void*)bufstr);
+			copyout(buf, bufstr, 4);
+			bufstr += 4;
+			if (strsize == 0) {
 				strsize++;
 			}
 		}
-
-		copyout(&firstblock, stk_ptr, sizeof(char) * 4);
-		stk_ptr -= sizeof(char*);
 	}
 }
 
@@ -134,7 +136,6 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 		return result;
 	}
 
-
 	/* Done with the file now. */
 	vfs_close(v);
 
@@ -145,17 +146,17 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 		return result;
 	}
 	userptr_t uargv = NULL;
-	if(argc > 0) {
-		uargv = (userptr_t)stackptr;
+	if (argc > 0) {
+		uargv = (userptr_t) stackptr;
 		copyoutargv(uargv, argv, argc, &stackptr);
-		uargv = (userptr_t)stackptr;
+		uargv = (userptr_t) stackptr;
 	}
 
 //	kprintf("TEMPPPP:runprogram.c Entering new process!!\n");
 
 	/* Warp to user mode. */
-	enter_new_process(argc /*argc*/, uargv /*userspace addr of argv*/,
-			NULL /*userspace addr of environment*/, stackptr, entrypoint);
+	enter_new_process(argc > 0? argc - 1 : 0 /*argc*/, uargv /*userspace addr of argv*/,
+	NULL /*userspace addr of environment*/, stackptr, entrypoint);
 
 	/* enter_new_process does not return. */
 	return EINVAL;
