@@ -93,25 +93,28 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 	return ret;*/
 }
 
-static void copyargstokernel(userptr_t uargs, char*** argv, unsigned long* argc) {
-	*argv = (char**)kmalloc(ARG_MAX);
-	char ** kargv = *argv;
+static void copyargstokernel(userptr_t uargs, char** argv, unsigned long* argc) {
+	*argv = (char*)kmalloc(ARG_MAX);
 
 	userptr_t uarg_iter = uargs;
 	userptr_t uaddress;
 	*argc = 0;
-	char buf[1024];//[ARG_MAX];
+	char* buf = *argv;
+	int readlen = 0;
 	while (uarg_iter != NULL) {
 
 		copyin(uarg_iter, &uaddress, sizeof(char*));
 		size_t len = 0;
-		copyinstr(uaddress, buf, 1024/*ARG_MAX*/, &len);
+		copyinstr(uaddress, buf, ARG_MAX - readlen, &len);
+		//kprintf("TEMPPPP: '%s'%p, '%s'%p = buf!!!\n", *argv , *argv, buf, buf);
 		if(len == 0) {
-			kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
+		//	kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
 			return;
 		}
-		kargv[*argc] = (char*) kmalloc(sizeof(char) * len);
-		strcpy(kargv[*argc], buf);
+		readlen+=len;
+		buf += len;
+		/*kargv[*argc] = (char*) kmalloc(sizeof(char) * len);
+		strcpy(kargv[*argc], buf);*/
 		(*argc)++;
 		/*if(*argc == 399) {
 			char** temp = (char**)kmalloc(ARG_MAX*sizeof(char*));
@@ -134,14 +137,14 @@ int sys_execv(userptr_t program, userptr_t args) {
 
 	char* progname = k_progname;
 	unsigned long argc;
-	char** argv;
+	char* argv;
 
 	copyargstokernel(args, &argv, &argc);
 
 	if(argc == 0) {
 		runprogram2(progname, NULL, 0);
 	} else {
-		runprogram2(progname, argv, argc);
+		runprogram2(progname, &argv, argc);
 	}
 	return result;
 }
