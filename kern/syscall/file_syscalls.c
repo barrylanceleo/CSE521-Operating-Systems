@@ -73,7 +73,6 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 			curprocess->p_filetable, read_fd);
 
 	if (read_ft_entry == NULL) {
-		kprintf("TEMPPPP:READ 1\n");
 		return EBADF;
 	}
 
@@ -84,8 +83,6 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 	if (!((handle->fh_permission & 3) == O_RDONLY || (handle->fh_permission & 3) == O_RDWR))
 	{
 
-		kprintf("TEMPPPP:No Read permission in sys read %d\n",
-				handle->fh_permission);
 		return EBADF;
 	}
 
