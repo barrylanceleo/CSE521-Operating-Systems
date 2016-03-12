@@ -305,6 +305,14 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 
 	int k_oldfd = (int) oldfd, k_newfd = (int) newfd;
 
+	if(k_oldfd < 0 || k_newfd < 0) {
+		return EBADF;
+	}
+
+	if(k_oldfd >= 128 || k_newfd >= 128) {
+			return EBADF;
+	}
+
 	//kprintf("TEMPPPP: %d dup2 HERE %d, %d\n", curproc->p_pid, (int)oldfd, (int)newfd);
 
 	// look up the fds
@@ -315,6 +323,7 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 
 	if (oldfd_entry == NULL) {
 		kprintf("TEMPPPP: %d, dup2 entry is null for  %d, %d\n",curproc->p_pid,(int)oldfd, (int)newfd);
+		*retval = EBADF;
 		return EBADF;
 	}
 
