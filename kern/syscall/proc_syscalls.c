@@ -35,7 +35,7 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 		*retval = -1;
 		return ENOMEM;
 	}
-	kprintf("TEMPPPP:In fork Child PID IS %d\n", child->p_pid);
+	//kprintf("TEMPPPP:In fork Child PID IS %d\n", child->p_pid);
 
 	result = as_copy(curproc->p_addrspace, &(child->p_addrspace));
 	if(result){
@@ -93,8 +93,10 @@ int sys_fork(struct trapframe* tf, pid_t* retval) {
 	return ret;*/
 }
 
+char USER_PC_ARG[ARG_MAX];
+
 static void copyargstokernel(userptr_t uargs, char** argv, unsigned long* argc) {
-	*argv = (char*)kmalloc(ARG_MAX);
+	*argv = USER_PC_ARG;
 
 	userptr_t uarg_iter = uargs;
 	userptr_t uaddress;
@@ -219,7 +221,7 @@ int sys__exit(int exitcode) {
 	lock_acquire(curprocess->p_waitcvlock);
 	curprocess->p_returnvalue = _MKWAIT_EXIT(exitcode);
 	curprocess->p_state = PS_COMPLETED;
-	kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
+	//kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);
 	lock_release(curprocess->p_waitcvlock);
 

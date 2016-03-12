@@ -157,6 +157,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 		uargv = (userptr_t) stackptr;
 		copyoutargv(uargv, argv, argc, &stackptr);
 		uargv = (userptr_t) stackptr;
+		//kfree(argv);
 	}
 
 //	kprintf("TEMPPPP:runprogram.c Entering new process!!\n");
