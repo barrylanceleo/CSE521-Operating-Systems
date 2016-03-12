@@ -21,6 +21,9 @@ int sys_open(userptr_t file_name, int arguments, int mode, int32_t* retval) {
 	int result = 0;
 	*retval = -1;
 
+
+	//kprintf("TEMPPPP: CWDDDDDDDD %p\n",curproc->p_cwd);
+
 	// verify if the flag is valid
 
 	if(arguments > 128)  // highest flag is 64
@@ -45,16 +48,17 @@ int sys_open(userptr_t file_name, int arguments, int mode, int32_t* retval) {
 	}
 
 	// insert file handle to the filetable and get the fd
-	int fd = filetable_addentry(curprocess, k_filename, arguments, mode);
-
-	if(fd < 0)
+	int new_fd;
+	result = filetable_addentry(curprocess, k_filename, arguments, mode, &new_fd);
+	if(result < 0)
 	{
-		*retval = fd;
-		return fd;
+		*retval = result;
+		return result;
 
 	}
 
-	*retval = fd;
+	//kprintf("TEMPPPP: %d: open fd %d , %p\n",curproc->p_pid, new_fd, curprocess->p_filetable);
+	*retval = new_fd;
 	return result;
 }
 
@@ -87,7 +91,7 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 
 
 	if(read_ft_entry->ft_fd  < 0 || read_ft_entry->ft_fd > 2){
-			kprintf("TEMPPPP:Read from fd: %d at offset: %llu\n", read_ft_entry->ft_fd, handle->fh_offset);
+			//kprintf("TEMPPPP:Read from fd: %d at offset: %llu\n", read_ft_entry->ft_fd, handle->fh_offset);
 	}
 
 
@@ -110,7 +114,7 @@ int sys_read(int read_fd, userptr_t user_buf_ptr, int buflen, int32_t* retval) {
 	kuio.uio_space = curproc->p_addrspace;
 	result = VOP_READ(file_vnode, &kuio);
 	if (result) {
-		kprintf("TEMPPPP:ERROR IN READ\n");
+		//kprintf("TEMPPPP: %d : INSIDE read(invalid fd)  %d\n",curproc->p_pid, (int)read_fd);
 		// release lock on the vnode
 		lock_release(file_vnode->vn_opslock);
 		return result;
@@ -135,12 +139,12 @@ int sys_write(int write_fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval)
 	*retval = -1;
 	struct proc* curprocess = curproc;
 	ssize_t write_nbytes = nbytes;
-
+	//kprintf("TEMPPPP: %d : INSIDE write  %d   %p\n",curproc->p_pid, (int)write_fd, curprocess->p_filetable);
 	// get the file table entry for the fd
 	struct filetable_entry* entry = filetable_lookup(curprocess->p_filetable,
 			write_fd);
 	if (entry == NULL) {
-		kprintf("Invalid fd passed to write");
+		//kprintf("TEMPPPP: %d : INSIDE write(invalid fd)  %d\n",curproc->p_pid, (int)write_fd);
 		return EBADF;
 	}
 
@@ -156,6 +160,14 @@ int sys_write(int write_fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval)
 /*	if(entry->ft_fd > 2){
 		kprintf("TEMPPPP:Write to fd: %d at offset: %llu\n", entry->ft_fd, handle->fh_offset);
 	}*/
+//
+//	if(write_nbytes > 1)
+//	{
+//		kprintf("TEMPPPP: CWDDDDDDDD %p\n",curproc->p_cwd);
+//		kprintf("TEMPPPP: Trying to write %d bytes to fd %d\n",write_nbytes, write_fd);
+//	}
+
+
 
 
 	// lock the operation
@@ -187,11 +199,18 @@ int sys_write(int write_fd, userptr_t user_buf_ptr, int nbytes, int32_t* retval)
 	// update the retval to indicate the number of bytes read
 	// release lock on the vnode
 	lock_release(file_vnode->vn_opslock);
+
+//	if(write_nbytes > 1)
+//	{
+//	kprintf("TEMPPPP: Wrote %d bytes to fd %d\n",*retval, write_fd);
+//
+//	}
+
 	return result;
 }
 
 int sys_close(userptr_t fd, int32_t* retval) {
-/*	kprintf("TEMPPPP:INSIDE CLOSE\n");*/
+	//kprintf("TEMPPPP: %d : INSIDE CLOSE   %d   %p\n",curproc->p_pid, (int)fd, curproc->p_filetable);
 	*retval = -1;
 	struct proc* curprocess = curproc;
 
@@ -286,6 +305,8 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 
 	int k_oldfd = (int) oldfd, k_newfd = (int) newfd;
 
+	//kprintf("TEMPPPP: %d dup2 HERE %d, %d\n", curproc->p_pid, (int)oldfd, (int)newfd);
+
 	// look up the fds
 	struct filetable_entry* oldfd_entry = filetable_lookup(
 			curprocess->p_filetable, k_oldfd);
@@ -293,6 +314,7 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 			curprocess->p_filetable, k_newfd);
 
 	if (oldfd_entry == NULL) {
+		kprintf("TEMPPPP: %d, dup2 entry is null for  %d, %d\n",curproc->p_pid,(int)oldfd, (int)newfd);
 		return EBADF;
 	}
 
@@ -301,6 +323,7 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 	if (newfd_entry != NULL) {
 		filehandle_destroy(newfd_entry->ft_handle);
 		newfd_entry->ft_handle = oldfd_entry->ft_handle;
+		filehandle_incref(newfd_entry->ft_handle);
 		*retval = k_newfd;
 		return result;
 	}
@@ -309,7 +332,7 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 				sizeof(struct filetable_entry));
 	entry->ft_fd = k_newfd;
 	entry->ft_handle = oldfd_entry->ft_handle;
-
+	filehandle_incref(entry->ft_handle);
 	filetable_addfd(curprocess, entry);
 
 	*retval = k_newfd;

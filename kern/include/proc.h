@@ -100,6 +100,8 @@ struct proc {
 
 struct file_handle
 {
+	struct lock* fh_lock;
+	int fh_refcount;
 	off_t fh_offset;
 	int fh_permission;
 	struct vnode* fh_vnode;
@@ -155,8 +157,7 @@ int proc_openstandardfds(struct proc* process);
 void filetable_empty(struct array* ft);
 
 /* Add a new entry to the file table, return the inserted fd */
-int filetable_addentry (struct proc* process, char* filename, int flags, int permission);
-
+int filetable_addentry(struct proc* process, char* filename, int flags, int mode, int * new_fd);
 /* Lookup an fd in the filetable*/
 struct filetable_entry *filetable_lookup(struct array* ft, int fd);
 
@@ -165,6 +166,8 @@ int filetable_remove(struct array* ft, int fd);
 
 /* close the vnode and free memory*/
 void filehandle_destroy (struct file_handle* handle);
+
+void filehandle_incref (struct file_handle* handle);
 
 int filetable_addfd(struct proc* process, struct filetable_entry* entry);
 

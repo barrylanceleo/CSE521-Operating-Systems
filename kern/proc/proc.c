@@ -84,7 +84,9 @@ proc_create(const char *name) {
 	proc->p_cwd = NULL;
 
 	/** file table */
+
 	proc->p_filetable = array_create();
+	//kprintf("TEMPPP: Newly created filetable %p",proc->p_filetable);
 	if (proc->p_filetable == NULL) {
 		kfree(proc->p_name);
 		kfree(proc);
@@ -144,6 +146,11 @@ void proc_destroy(struct proc *proc) {
 	 * reference to this structure. (Otherwise it would be
 	 * incorrect to destroy it.)
 	 */
+	if(proc->p_filetable != NULL) {
+		filetable_empty(proc->p_filetable);
+		array_destroy(proc->p_filetable);
+	}
+
 
 	/* VFS fields */
 	if (proc->p_cwd) {
@@ -199,6 +206,7 @@ void proc_destroy(struct proc *proc) {
 	}
 
 	//TODO destroy everything created in create
+
 
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
@@ -279,13 +287,24 @@ struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 	unsigned int i;
 	// TODO Move this to a separate method
 	for (i = 0; i < array_num(parent->p_filetable); i++) {
-		int s = array_add(child->p_filetable, array_get(parent->p_filetable, i),
-				NULL);
+		struct filetable_entry* entry = array_get(parent->p_filetable, i);
+		struct filetable_entry* newentry = (struct filetable_entry*) kmalloc(sizeof(struct filetable_entry));
+		if(entry == NULL) {
+			proc_destroy(child);
+			return NULL;
+		}
+		newentry->ft_fd =  entry->ft_fd;
+
+		newentry->ft_handle = entry->ft_handle;
+		filehandle_incref(entry->ft_handle);
+		int s = array_add(child->p_filetable, newentry, NULL);
+
 		if (s == ENOMEM) {
 			proc_destroy(child);
 			return NULL;
 		}
 	}
+
 	child->p_fdcounter = parent->p_fdcounter;
 
 	/** process table */
@@ -308,7 +327,6 @@ struct proc* proc_createchild(struct proc* parent, struct addrspace** as) {
 	spinlock_release(&(parent->p_lock));
 
 	/** address space */
-	//as_copy(parent->p_addrspace, as);
 	(void) as;
 	return child;
 }
@@ -438,6 +456,9 @@ static int filetable_addentryforvnode(struct proc* process, int permission,
 	handle->fh_offset = 0;
 	handle->fh_permission = permission;
 	handle->fh_vnode = vn;
+	handle->fh_refcount = 1;
+	handle->fh_lock = lock_create("fhl");
+	filehandle_incref(handle);
 
 	struct filetable_entry* entry = (struct filetable_entry*) kmalloc(
 			sizeof(struct filetable_entry));
@@ -473,17 +494,19 @@ int proc_openstandardfds(struct proc* process) {
 }
 
 int filetable_addentry(struct proc* process, char* filename, int flags,
-		int mode) {
+		int mode, int * new_fd) {
 	struct vnode* vn;
 	int result = 0;
 	mode = 0;
 	result = vfs_open(filename, flags, mode, &vn);
 	if (result) {
-		kprintf("\nTEMPPPP:OPEN Failed in vfsopen error %d", result);
+		// kprintf("TEMPPPP: FiletableENtry failed\n");
 		return result;
 	}
 
-	return filetable_addentryforvnode(process, flags, vn);
+	*new_fd = filetable_addentryforvnode(process, flags, vn);;
+
+	return 0;
 
 }
 
@@ -511,6 +534,7 @@ struct filetable_entry *filetable_lookup(struct array* table, int fd) {
 
 	struct filetable_entry* entry = (struct filetable_entry*) array_get(table,
 			index);
+
 	return entry;
 
 }
@@ -541,11 +565,10 @@ int filetable_remove(struct array* table, int fd) {
 }
 
 void filetable_empty(struct array* ft) {
-	unsigned int i;
-	for (i = 0; i < array_num(ft); i++) {
+	int i;
+	for (i = array_num(ft) -1 ; i >=0 ; i--) {
 		struct filetable_entry* entry = (struct filetable_entry*) array_get(ft,
 				i);
-
 		filehandle_destroy(entry->ft_handle);
 
 		// free memory allocated for the entry
@@ -560,8 +583,24 @@ void filetable_empty(struct array* ft) {
 
 void filehandle_destroy(struct file_handle* handle) {
 
+	if(handle->fh_vnode == console_vnode) {
+		return;
+	}
+	lock_acquire(handle->fh_lock);
+	struct lock* l = handle->fh_lock;
+	handle->fh_refcount--;
 	// close the vnode based on the refcount
-	vfs_close(handle->fh_vnode);
-	kfree(handle);
+	if (handle->fh_refcount == 0) {
+		vfs_close(handle->fh_vnode);
+		kfree(handle);
+		lock_release(l);
+		lock_destroy(l);
+	}
+	lock_release(l);
 }
 
+void filehandle_incref(struct file_handle* handle) {
+	lock_acquire(handle->fh_lock);
+	handle->fh_refcount++;
+	lock_release(handle->fh_lock);
+}
