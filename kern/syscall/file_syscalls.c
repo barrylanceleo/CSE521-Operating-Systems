@@ -284,15 +284,13 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 	*retval = -1;
 	struct proc* curprocess = curproc;
 
-	int k_oldfd, k_newfd;
-	result = copyin(oldfd, &k_oldfd, sizeof(int));
-	result = copyin(newfd, &k_newfd, sizeof(int));
+	int k_oldfd = (int) oldfd, k_newfd = (int) newfd;
 
 	// look up the fds
 	struct filetable_entry* oldfd_entry = filetable_lookup(
 			curprocess->p_filetable, k_oldfd);
 	struct filetable_entry* newfd_entry = filetable_lookup(
-			curprocess->p_filetable, k_oldfd);
+			curprocess->p_filetable, k_newfd);
 
 	if (oldfd_entry == NULL) {
 		return EBADF;
@@ -303,10 +301,16 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd, int32_t* retval) {
 	if (newfd_entry != NULL) {
 		filehandle_destroy(newfd_entry->ft_handle);
 		newfd_entry->ft_handle = oldfd_entry->ft_handle;
+		*retval = k_newfd;
+		return result;
 	}
 
-	// TODO create a file table entry with the newfd
-	// and make its file handle point to oldfd's file handle
+	struct filetable_entry* entry = (struct filetable_entry*) kmalloc(
+				sizeof(struct filetable_entry));
+	entry->ft_fd = k_newfd;
+	entry->ft_handle = oldfd_entry->ft_handle;
+
+	filetable_addfd(curprocess, entry);
 
 	*retval = k_newfd;
 	return result;
