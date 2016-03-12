@@ -105,9 +105,9 @@ static void copyargstokernel(userptr_t uargs, char** argv, unsigned long* argc) 
 		copyin(uarg_iter, &uaddress, sizeof(char*));
 		size_t len = 0;
 		copyinstr(uaddress, buf, ARG_MAX - readlen, &len);
-		kprintf("TEMPPPP: '%s'%p, '%s'%p = buf!!!\n", *argv , *argv, buf, buf);
+		//kprintf("TEMPPPP: '%s'%p, '%s'%p = buf!!!\n", *argv , *argv, buf, buf);
 		if(len == 0) {
-			kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
+		//	kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
 			return;
 		}
 		readlen+=len;
