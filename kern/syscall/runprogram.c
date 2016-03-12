@@ -49,10 +49,13 @@
 static void copyoutargv(userptr_t uargv, char** argv, int argc,
 		vaddr_t* stackptr) {
 	int i = 0;
+	char* myptr = *argv;
 	int offset = (argc + 1)* 4;
 	for (i = 0; i < argc; i++) {
-		int len = (strlen(argv[i]) + 1) / 4 + 1;
-		offset += len * 4;
+		int len = (strlen(myptr) + 1);
+		kprintf("TEMPPPPPP: strlen %d ptr '%s' : %p \n", len, myptr, myptr);
+		offset += ((len / 4 )+ 1 )* 4;
+		myptr+=len;
 	}
 	*stackptr = (vaddr_t)(uargv - offset); // Dont touch stackptr from here
 	kprintf("TEMPPPP: stackptr = uargv - offset [%p=%p-%d]\n", (void*)*stackptr, uargv,
@@ -61,11 +64,14 @@ static void copyoutargv(userptr_t uargv, char** argv, int argc,
 	userptr_t address_ptr = (userptr_t)*stackptr;
 	userptr_t buf_ptr = uargv;
 
+	myptr = *argv;
+
 	for (i = 0; i < argc; i++) {
-		int strsize = strlen(argv[i]);
+		int strsize = strlen(myptr);
+		int cstrsize = strsize;
 		buf_ptr = buf_ptr - (((strsize / 4) + 1) * 4);
 		userptr_t bufstr = buf_ptr;
-		kprintf("TEMPPPP: ptr = addr [%p=>%p] %d\n", (void*)buf_ptr, (void*)address_ptr, i);
+		kprintf("TEMPPPP: ptr = addr [%p=>%p] %d ---- strsize = %d\n", (void*)buf_ptr, (void*)address_ptr, i, strsize);
 		copyout(&buf_ptr, address_ptr, 4);
 		address_ptr += 4;
 
@@ -74,7 +80,7 @@ static void copyoutargv(userptr_t uargv, char** argv, int argc,
 		int j = 0;
 		while (strsize > 0) {
 			for (int k = 0; k < 4; k++) {
-				buf[k] = strsize > 0 ? argv[i][j++] : '\0';
+				buf[k] = strsize > 0 ? *(myptr + j) : '\0'; j++;
 				strsize--;
 			}
 			kprintf("TEMPPPP: buf = addr [%s=>%p]\n", buf, (void*)bufstr);
@@ -84,6 +90,7 @@ static void copyoutargv(userptr_t uargv, char** argv, int argc,
 				strsize++;
 			}
 		}
+		myptr += cstrsize + 1;
 	}
 }
 
