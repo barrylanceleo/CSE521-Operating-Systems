@@ -257,6 +257,7 @@ int sys_lseek(userptr_t fd, off_t seek_pos, userptr_t whence, off_t* retval) {
 	case SEEK_SET:
 		new_pos = seek_pos;
 		if (new_pos < 0) {
+			lock_release(file_vnode->vn_opslock);
 			return EINVAL;
 		}
 		handle->fh_offset = new_pos;
@@ -268,6 +269,7 @@ int sys_lseek(userptr_t fd, off_t seek_pos, userptr_t whence, off_t* retval) {
 	case SEEK_CUR:
 		new_pos = handle->fh_offset + seek_pos;
 		if (new_pos < 0) {
+			lock_release(file_vnode->vn_opslock);
 			return EINVAL;
 		}
 		handle->fh_offset = new_pos;
@@ -281,6 +283,7 @@ int sys_lseek(userptr_t fd, off_t seek_pos, userptr_t whence, off_t* retval) {
 		new_pos = statbuf.st_size + seek_pos;
 
 		if (new_pos < 0) {
+			lock_release(file_vnode->vn_opslock);
 			return EINVAL;
 		}
 		handle->fh_offset = new_pos;
