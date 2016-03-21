@@ -193,21 +193,36 @@ int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
 int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 		pid_t* retval) {
 
+	int result = 0;
+	int k_status = 0;
+
+	// check for null pointer reference
+	if(status == NULL){
+		return result;
+	}
+
 	int k_options = (int) options;
 
 	if (k_options != 0) {
 		*retval = -1;
-		return -1;
+		return EINVAL;
 	}
 
 	pid_t k_pid = (pid_t) userpid;
-	int result = 0;
 
-	int k_status = 0;
+	//kprintf("TEMPPPP Starting wait_pid for pid: %d", k_pid);
+
 	result = k_waitpid(k_pid, &k_status, retval);
 	k_status = _MKWAIT_EXIT(k_status);
-	copyout(&k_status, status, sizeof(int));
-    //kprintf("TEMPPPP WaitPid for %d Completed, Status:%d retval: %d \n", k_pid, k_status, *retval);
+
+	// check for bad pointer reference
+	int err_code = 0;
+	err_code = copyout(&k_status, status, sizeof(int));
+	if(err_code){
+		return err_code;
+	}
+
+	//kprintf("TEMPPPP Exiting wait_pid for pid: %d with result: %d", k_pid, result);
 
 
 	return result;
