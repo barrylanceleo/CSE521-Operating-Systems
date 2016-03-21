@@ -76,7 +76,7 @@ int sys_dup2(userptr_t oldfd, userptr_t newfd , int32_t* retval);
 int sys_fork(struct trapframe* tf, pid_t* pid);
 int sys_getpid(pid_t* retval);
 int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options, pid_t* retval);
-int sys_execv(userptr_t program, userptr_t args);
+int sys_execv(userptr_t program, userptr_t args, int32_t* retval);
 int sys__exit(int exitcode);
 
 #endif /* _SYSCALL_H_ */

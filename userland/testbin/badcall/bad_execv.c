@@ -74,6 +74,8 @@ exec_common_fork(int *result)
 		report_failure(result);
 		return -1;
 	}
+	//printf("TEMPPP: WAITPID RETURNED %d\n",status);
+
 	if (WIFEXITED(status) && WEXITSTATUS(status) == MAGIC_STATUS) {
 		*result = SUCCESS;
 		return 1;
@@ -106,6 +108,7 @@ exec_badprog(const void *prog, const char *desc)
 
 	report_begin(desc);
 	rv = execv(prog, args);
+	//printf("TEMPPPP: return value = %d , errno = %d, expected value = %d\n", rv,errno,EFAULT);
 	result = report_check(rv, errno, EFAULT);
 	int code = result ? result : MAGIC_STATUS;
 	exit(code);
