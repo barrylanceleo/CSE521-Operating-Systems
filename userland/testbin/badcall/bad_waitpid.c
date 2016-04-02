@@ -241,7 +241,9 @@ wait_siblings_child(const char *semname)
 	 * file-level synchronization causes concurrent use to
 	 * deadlock.
 	 */
+	printf("Before second sem open\n");
 	semfd = open(semname, O_RDONLY);
+	printf("After second sem open\n");
 	if (semfd < 0) {
 		report_warn("child process (pid %d) can't open %s",
 			 mypid, semname);
