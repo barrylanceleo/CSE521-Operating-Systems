@@ -347,7 +347,7 @@ file      proc/processtable.c
 #
 
 file      vm/kmalloc.c
-
+file	  vm/myvm.c
 optofffile dumbvm   vm/addrspace.c
 
 #
