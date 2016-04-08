@@ -38,9 +38,6 @@
 
 struct core_map_entry{
 
-	// first the physical address of the page this core_map_entry points to
-	paddr_t phy_addr;
-
 	// address space identifier
 	struct addrspace* as;
 
