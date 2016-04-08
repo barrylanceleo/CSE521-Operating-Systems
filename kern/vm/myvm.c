@@ -18,6 +18,8 @@ unsigned first_paddr;
 // number of pages excluding the coremap
 unsigned page_count;
 
+#define COREMAP(i) (struct core_map_entry *)(coremap + i)
+
 static void cm_setEntryAddrspaceIdent(struct core_map_entry *entry, struct addrspace * as){
 
 	entry->as = as;
@@ -131,11 +133,11 @@ void vm_bootstrap() {
 	for(i = 0; i < page_count; i++){
 
 		// update the state
-		cm_setEntryUseState((struct core_map_entry *)(coremap + i), false);
-		cm_setEntryDirtyState((struct core_map_entry *)(coremap + i), false);
+		cm_setEntryUseState(COREMAP(i), false);
+		cm_setEntryDirtyState(COREMAP(i), false);
 
 		// let the address space identifier be NULL initially
-		cm_setEntryAddrspaceIdent((struct core_map_entry *)(coremap + i), NULL);
+		cm_setEntryAddrspaceIdent(COREMAP(i), NULL);
 
 		// initial chunk start need not be initialized, will be updated when page is allocated
 	}
@@ -158,9 +160,9 @@ vaddr_t alloc_kpages(unsigned npages) {
 	unsigned i = 0, j = 0;
 	// search for n continuous free pages
 	for (i = 0; i < page_count; i++) {
-		if (!cm_isEntryUsed((struct core_map_entry *)(coremap + i))) {
+		if (!cm_isEntryUsed(COREMAP(i))) {
 			for (j = i + 1; j < page_count && j - i < npages; j++) {
-				if (cm_isEntryUsed((struct core_map_entry *)(coremap + j))) {
+				if (cm_isEntryUsed(COREMAP(j))) {
 					break;
 				}
 			}
@@ -168,14 +170,14 @@ vaddr_t alloc_kpages(unsigned npages) {
 				unsigned k = i;
 				for (; k < j; k++) {
 					// update the state
-					cm_setEntryUseState((struct core_map_entry *)(coremap + k), true);
-					cm_setEntryDirtyState((struct core_map_entry *)(coremap + k), true);
+					cm_setEntryUseState(COREMAP(k), true);
+					cm_setEntryDirtyState(COREMAP(k), true);
 
 					// let the address space identifier be NULL for now
-					cm_setEntryAddrspaceIdent((struct core_map_entry *)(coremap + k), NULL);
+					cm_setEntryAddrspaceIdent(COREMAP(k), NULL);
 
 					// chunk start would be the first page in the chunk
-					cm_setEntryChunkStart((struct core_map_entry *)(coremap + k), i);
+					cm_setEntryChunkStart(COREMAP(k), i);
 
 				}
 //				if(i != j-1){
@@ -202,17 +204,17 @@ void free_kpages(vaddr_t addr) {
 		if (PADDR_TO_KVADDR(cm_getEntryPaddr(i))
 				== addr) {
 			// free all the pages in the chunk
-			unsigned chunk_start = cm_getEntryChunkStart((struct core_map_entry *)(coremap + i));
+			unsigned chunk_start = cm_getEntryChunkStart(COREMAP(i));
 			unsigned j = i;
-			while(j < page_count && cm_isEntryUsed((struct core_map_entry *)(coremap + j))
-					&& cm_getEntryChunkStart((struct core_map_entry *)(coremap + j)) == chunk_start){
+			while(j < page_count && cm_isEntryUsed(COREMAP(j))
+					&& cm_getEntryChunkStart(COREMAP(j)) == chunk_start){
 
 				// update the state
-				cm_setEntryUseState((struct core_map_entry *)(coremap + j), false);
-				cm_setEntryDirtyState((struct core_map_entry *)(coremap + j), false);
+				cm_setEntryUseState(COREMAP(j), false);
+				cm_setEntryDirtyState(COREMAP(j), false);
 
 				// let the address space identifier be NULL initially
-				cm_setEntryAddrspaceIdent((struct core_map_entry *)(coremap + j), NULL);
+				cm_setEntryAddrspaceIdent(COREMAP(j), NULL);
 				j++;
 			}
 
@@ -244,7 +246,7 @@ unsigned int coremap_used_bytes() {
 	// traverse the coremap and find the number of alocated pages
 	unsigned i, used_pages_count = 0;
 	for (i = 0; i < page_count; i++) {
-		if(cm_isEntryUsed((struct core_map_entry *)(coremap + i))){
+		if(cm_isEntryUsed(COREMAP(i))){
 			used_pages_count++;
 		}
 	}
