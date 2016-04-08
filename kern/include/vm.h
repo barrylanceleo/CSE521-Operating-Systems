@@ -36,6 +36,22 @@
  * You'll probably want to add stuff here.
  */
 
+struct core_map_entry{
+
+	// first the physical address of the page this core_map_entry points to
+	paddr_t phy_addr;
+
+	// address space identifier
+	struct addrspace* as;
+
+	// used the free the entire chunk, when more than one page is allocated
+	unsigned chunk_start;
+
+	// lowest bit for free/used, second lowest for clean/dirty
+	char page_state;
+
+	// may need to add more members for our page replacement algorithm
+};
 
 #include <machine/vm.h>
 
