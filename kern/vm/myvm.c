@@ -158,7 +158,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 	for (i = 0; i < page_count; i++) {
 		if (!cm_isEntryUsed((struct core_map_entry *)(coremap + i))) {
 			for (j = i + 1; j < page_count && j - i < npages; j++) {
-				if (cm_isEntryUsed((struct core_map_entry *)(coremap + i))) {
+				if (cm_isEntryUsed((struct core_map_entry *)(coremap + j))) {
 					break;
 				}
 			}
@@ -176,7 +176,9 @@ vaddr_t alloc_kpages(unsigned npages) {
 					cm_setEntryChunkStart((struct core_map_entry *)(coremap + k), i);
 
 				}
-				//kprintf("Requested %u page(s). Allocated pages: %u to %u", npages, i, j-1);
+//				if(i != j-1){
+//				kprintf("Requested %u page(s). Allocated pages: %u to %u\n", npages, i, j-1);
+//				}
 				paddr_t output_paddr = cm_getEntryPaddr((struct core_map_entry *)(coremap + i));
 				spinlock_release(&coremap_lock);
 				return PADDR_TO_KVADDR(output_paddr);
@@ -211,7 +213,12 @@ void free_kpages(vaddr_t addr) {
 				cm_setEntryAddrspaceIdent((struct core_map_entry *)(coremap + j), NULL);
 				j++;
 			}
+
+//			if(i != j-1){
+//							kprintf("Freed pages: %u to %u\n", i, j-1);
+//			}
 			spinlock_release(&coremap_lock);
+
 			return;
 		}
 	}
