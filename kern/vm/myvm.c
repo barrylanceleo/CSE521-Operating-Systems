@@ -106,8 +106,10 @@ void vm_bootstrap() {
 		panic("Unable to allocate space for coremap");
 	}
 
+	kprintf("Start of coremap: %u\n", first_addr);
 	coremap = (struct core_map_entry*)PADDR_TO_KVADDR(first_addr);
 	first_addr += coremap_size;
+	kprintf("End of coremap: %u\n", first_addr);
 
 	// align the pages, the first page should start with an address which is a multiple of PAGE_SIZE
 	if(first_addr % PAGE_SIZE != 0){
@@ -118,6 +120,7 @@ void vm_bootstrap() {
 	page_count = (last_addr - first_addr) / PAGE_SIZE;
 
 
+	kprintf("Start of usable memory: %u\n", first_addr);
 	// initialize the coremap
 	unsigned i;
 	for(i = 0; i < page_count; i++){
@@ -154,7 +157,7 @@ vaddr_t alloc_kpages(unsigned npages) {
 	// search for n continuous free pages
 	for (i = 0; i < page_count; i++) {
 		if (!cm_isEntryUsed((struct core_map_entry *)(coremap + i))) {
-			for (j = i + 1; j - i < npages; j++) {
+			for (j = i + 1; j < page_count && j - i < npages; j++) {
 				if (cm_isEntryUsed((struct core_map_entry *)(coremap + i))) {
 					break;
 				}
@@ -167,12 +170,13 @@ vaddr_t alloc_kpages(unsigned npages) {
 					cm_setEntryDirtyState((struct core_map_entry *)(coremap + k), true);
 
 					// let the address space identifier be NULL for now
-					cm_setEntryAddrspaceIdent((struct core_map_entry *)(coremap + i), NULL);
+					cm_setEntryAddrspaceIdent((struct core_map_entry *)(coremap + k), NULL);
 
 					// chunk start would be the first page in the chunk
-					cm_setEntryChunkStart((struct core_map_entry *)(coremap + i), i);
+					cm_setEntryChunkStart((struct core_map_entry *)(coremap + k), i);
 
 				}
+				//kprintf("Requested %u page(s). Allocated pages: %u to %u", npages, i, j-1);
 				paddr_t output_paddr = cm_getEntryPaddr((struct core_map_entry *)(coremap + i));
 				spinlock_release(&coremap_lock);
 				return PADDR_TO_KVADDR(output_paddr);
