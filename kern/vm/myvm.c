@@ -112,10 +112,17 @@ void vm_bootstrap() {
 	// align the pages, the first page should start with an address which is a multiple of PAGE_SIZE
 	if(first_paddr % PAGE_SIZE != 0){
 		first_paddr += PAGE_SIZE - (first_paddr % PAGE_SIZE);
+		kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size, coremap_size/PAGE_SIZE + 1);
 	}
+	else{
+		kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size, coremap_size/PAGE_SIZE);
+	}
+
+
 
 	// update the page count, may reduce due to space allocation for coremap
 	page_count = (last_paddr - first_paddr) / PAGE_SIZE;
+	kprintf("Pages available for use: %u\n", page_count);
 
 
 	kprintf("Start of usable memory: %u\n", first_paddr);
