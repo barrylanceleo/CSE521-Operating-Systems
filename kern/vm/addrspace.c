@@ -40,16 +40,24 @@
  * used. The cheesy hack versions in dumbvm.c are used instead.
  */
 
+static unsigned int s_addrspaceCounter = 0;
+
+static int as_getNewAddrSpaceId() {
+	// TODO lock this up
+	return s_addrspaceCounter++;
+}
+
 struct addrspace *
-as_create(void)
-{
+as_create(void) {
 	struct addrspace *as;
 
 	as = kmalloc(sizeof(struct addrspace));
 	if (as == NULL) {
 		return NULL;
 	}
-
+	as->as_pagetable = array_create();
+	as->as_npages = 0;
+	as->as_id = as_getNewAddrSpaceId();
 	/*
 	 * Initialize as needed.
 	 */
@@ -57,29 +65,25 @@ as_create(void)
 	return as;
 }
 
-int
-as_copy(struct addrspace *old, struct addrspace **ret)
-{
+int as_copy(struct addrspace *old, struct addrspace **ret) {
 	struct addrspace *newas;
 
 	newas = as_create();
-	if (newas==NULL) {
+	if (newas == NULL) {
 		return ENOMEM;
 	}
 
-	/*
-	 * Write this.
-	 */
+	newas->as_id = as_getNewAddrSpaceId();
 
-	(void)old;
+	newas->as_npages = old->as_npages;
+	newas->as_pagetable = array_create();
+	//TODO copy page table entries into new as pagetable
 
 	*ret = newas;
 	return 0;
 }
 
-void
-as_destroy(struct addrspace *as)
-{
+void as_destroy(struct addrspace *as) {
 	/*
 	 * Clean up as needed.
 	 */
@@ -87,9 +91,7 @@ as_destroy(struct addrspace *as)
 	kfree(as);
 }
 
-void
-as_activate(void)
-{
+void as_activate(void) {
 	struct addrspace *as;
 
 	as = proc_getas();
@@ -106,9 +108,7 @@ as_activate(void)
 	 */
 }
 
-void
-as_deactivate(void)
-{
+void as_deactivate(void) {
 	/*
 	 * Write this. For many designs it won't need to actually do
 	 * anything. See proc.c for an explanation of why it (might)
@@ -126,53 +126,45 @@ as_deactivate(void)
  * moment, these are ignored. When you write the VM system, you may
  * want to implement them.
  */
-int
-as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
-		 int readable, int writeable, int executable)
-{
+int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
+		int readable, int writeable, int executable) {
 	/*
 	 * Write this.
 	 */
 
-	(void)as;
-	(void)vaddr;
-	(void)memsize;
-	(void)readable;
-	(void)writeable;
-	(void)executable;
+	(void) as;
+	(void) vaddr;
+	(void) memsize;
+	(void) readable;
+	(void) writeable;
+	(void) executable;
 	return ENOSYS;
 }
 
-int
-as_prepare_load(struct addrspace *as)
-{
+int as_prepare_load(struct addrspace *as) {
 	/*
 	 * Write this.
 	 */
 
-	(void)as;
+	(void) as;
 	return 0;
 }
 
-int
-as_complete_load(struct addrspace *as)
-{
+int as_complete_load(struct addrspace *as) {
 	/*
 	 * Write this.
 	 */
 
-	(void)as;
+	(void) as;
 	return 0;
 }
 
-int
-as_define_stack(struct addrspace *as, vaddr_t *stackptr)
-{
+int as_define_stack(struct addrspace *as, vaddr_t *stackptr) {
 	/*
 	 * Write this.
 	 */
 
-	(void)as;
+	(void) as;
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;

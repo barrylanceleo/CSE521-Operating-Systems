@@ -51,6 +51,7 @@ struct core_map_entry{
 };
 
 #include <machine/vm.h>
+#include <array.h>
 
 /* Fault-type arguments to vm_fault() */
 #define VM_FAULT_READ        0    /* A read was attempted */
@@ -67,6 +68,10 @@ int vm_fault(int faulttype, vaddr_t faultaddress);
 /* Allocate/free kernel heap pages (called by kmalloc/kfree) */
 vaddr_t alloc_kpages(unsigned npages);
 void free_kpages(vaddr_t addr);
+
+/* Allocate/free pages in process address spaces */
+vaddr_t coremap_allocuserpages(unsigned npages, struct addrspace* as);
+void coremap_freeuserpages(paddr_t addr);
 
 /*
  * Return amount of memory (in bytes) used by allocated coremap pages.  If
