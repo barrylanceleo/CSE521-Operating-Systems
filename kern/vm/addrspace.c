@@ -33,6 +33,8 @@
 #include <addrspace.h>
 #include <vm.h>
 #include <proc.h>
+#include <mips/tlb.h>
+#include <spl.h>
 
 /*
  * Note! If OPT_DUMBVM is set, as is the case until you start the VM
@@ -74,13 +76,26 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 	if (newas == NULL) {
 		return ENOMEM;
 	}
-
-	newas->as_id = as_getNewAddrSpaceId();
-	newas->as_pagetable = array_create();
-	//TODO copy page table entries into new as pagetable
-	newas->as_regions = array_create();
-	//TODO copy page table entries into new as pagetable
-
+	newas->as_stackPageCount = old->as_stackPageCount;
+	newas->as_addrPtr = old->as_addrPtr;
+	unsigned int i = 0;
+	for (i = 0; i < array_num(old->as_regions); i++) {
+		struct region* reg = array_get(old->as_regions, i);
+		struct region* newReg = (struct region*) kmalloc(sizeof(struct region));
+		newReg->executable = reg->executable;
+		newReg->readable = reg->readable;
+		newReg->rg_size = reg->rg_size;
+		newReg->rg_vaddr = reg->rg_vaddr;
+		newReg->writeable = reg->writeable;
+		unsigned int idx;
+		array_add(newas->as_regions, newReg, &idx);
+	}
+	for (i = 0; i < array_num(old->as_pagetable); i++) {
+		struct page* pg = array_get(old->as_pagetable, i);
+		struct page* newPg = page_create(newas, pg->pt_virtbase * PAGE_SIZE);
+		memmove(PADDR_TO_KVADDR((void*) (newPg->pt_pagebase * PAGE_SIZE)),
+				PADDR_TO_KVADDR((void*) (pg->pt_pagebase * PAGE_SIZE)), PAGE_SIZE);
+	}
 	*ret = newas;
 	return 0;
 }
@@ -89,8 +104,6 @@ void as_destroy(struct addrspace *as) {
 	/*
 	 * Clean up as needed.
 	 */
-
-	// TODO
 	int regionCount = array_num(as->as_regions);
 	int i;
 	for (i = 0; i < regionCount; i++) {
@@ -127,6 +140,12 @@ void as_activate(void) {
 	/*
 	 * Write this.
 	 */
+	int spl = splhigh();
+	int i;
+	for (i = 0; i < NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+	splx(spl);
 }
 
 void as_deactivate(void) {
@@ -162,6 +181,12 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	newregion->rg_vaddr = vaddr;
 	unsigned int index;
 	array_add(as->as_regions, newregion, &index);
+	// TODO adjust this to be the next closest multiple of 4096
+	as->as_addrPtr = vaddr + memsize ;
+	if(as->as_addrPtr % PAGE_SIZE != 0) {
+		as->as_addrPtr = ((as->as_addrPtr / PAGE_SIZE) + 1 ) * PAGE_SIZE;
+		// an ugly way round it to a multiple of 4096
+	}
 
 	return 0;
 }
@@ -185,9 +210,6 @@ int as_complete_load(struct addrspace *as) {
 }
 
 int as_define_stack(struct addrspace *as, vaddr_t *stackptr) {
-	/*
-	 * Write this.
-	 */
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;

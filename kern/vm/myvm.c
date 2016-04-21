@@ -9,6 +9,8 @@
 #include <current.h>
 #include <kern/errno.h>
 #include <mips/tlb.h>
+#include <syscall.h>
+#include <spl.h>
 
 // core map data structure
 struct core_map_entry* coremap;
@@ -117,10 +119,10 @@ void vm_bootstrap() {
 	if (first_paddr % PAGE_SIZE != 0) {
 		first_paddr += PAGE_SIZE - (first_paddr % PAGE_SIZE);
 		//kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size,
-				//coremap_size / PAGE_SIZE + 1);
+		//coremap_size / PAGE_SIZE + 1);
 	} else {
 		//kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size,
-				//coremap_size / PAGE_SIZE);
+		//coremap_size / PAGE_SIZE);
 	}
 
 	// update the page count, may reduce due to space allocation for coremap
@@ -155,6 +157,7 @@ static struct region* findRegionForFaultAddress(struct addrspace* as,
 			return reg;
 		}
 	}
+	//kprintf("Region count is : %u\n",regionCount);
 	return NULL;
 }
 
@@ -173,22 +176,31 @@ static struct page* findPageForFaultAddress(struct addrspace* as,
 }
 
 static int isWithinStack(struct addrspace* as, vaddr_t faultaddress) {
-	return (USERSTACK - faultaddress)/PAGE_SIZE <= as->as_stackPageCount + 1;
+	return (USERSTACK - faultaddress) / PAGE_SIZE <= as->as_stackPageCount + 1;
 }
 
 /* Fault handling function called by trap code */
 int vm_fault(int faulttype, vaddr_t faultaddress) {
 	// TODO implement this?
-	//kprintf("VMFault type = %d, address = %x\n", faulttype, faultaddress);
 	struct addrspace* as = proc_getas();
 	if (as == NULL) {
-		return ENOSYS;
+		return EFAULT;
 	}
 	struct region* reg = findRegionForFaultAddress(as, faultaddress);
 	if (reg == NULL) {
-		if(!isWithinStack(as,faultaddress)) {
-			return ENOSYS;
-		 } // TODO fill this
+		if (!isWithinStack(as, faultaddress)) {
+			/*int regionCount = array_num(as->as_regions);
+			 kprintf("Checking region count :%d\n ",regionCount);
+			 int i;
+			 for (i = 0; i < regionCount; i++) {
+			 struct region* reg = array_get(as->as_regions, i);
+			 (void)reg;
+			 //kprintf("Checking region : base = %x, end=%x, faultaddress =%x\n ",reg->rg_vaddr, (reg->rg_vaddr + reg->rg_size), faultaddress);
+			 }*/
+
+			//kprintf("VMFault returned ENOSYS for type = %d, address = %x\n", faulttype, faultaddress);
+			return EFAULT;
+		} // TODO fill this
 
 	}
 	// TODO Check if it is a permission issue and return an error code in that case.
@@ -198,16 +210,18 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	if (pg == NULL) {
 		struct page* newpage = page_create(as, faultaddress);
 		pg = newpage;
-		if(isWithinStack(as, faultaddress)) {
+		if (isWithinStack(as, faultaddress)) {
 			as->as_stackPageCount++;
 		}
 	}
 
 	// load page address to tlb
 	/*kprintf("VMFault Writign to tlb type = %d, address = %x\n", faulttype,
-			faultaddress);*/
-	tlb_random(pg->pt_virtbase * PAGE_SIZE, (pg->pt_pagebase * PAGE_SIZE) | TLBLO_DIRTY | TLBLO_VALID );
-
+	 faultaddress);*/
+	int spl = splhigh();
+	tlb_random(pg->pt_virtbase * PAGE_SIZE,
+			(pg->pt_pagebase * PAGE_SIZE) | TLBLO_DIRTY | TLBLO_VALID);
+	splx(spl);
 	(void) faulttype;
 	return 0;
 }
@@ -236,6 +250,8 @@ vaddr_t coremap_allocuserpages(unsigned npages, struct addrspace * as) {
 				}
 				paddr_t output_paddr = cm_getEntryPaddr(i);
 				spinlock_release(&coremap_lock);
+				bzero(PADDR_TO_KVADDR((void* )output_paddr),
+						npages * PAGE_SIZE);
 				return output_paddr;
 			}
 		}
@@ -310,4 +326,43 @@ void vm_tlbshootdown_all() {
 void vm_tlbshootdown(const struct tlbshootdown * tlb) {
 	(void) tlb;
 //TODO implement this. but what is this?
+}
+
+int sys_sbrk(userptr_t amount, int32_t* retval) {
+	// TODO implement this
+	*retval = 0;
+	if ((int) amount % PAGE_SIZE != 0) {
+		*retval = -1;
+		return EINVAL;
+	}
+	struct addrspace* as = proc_getas();
+	if (amount == 0) {
+		*retval = as->as_addrPtr;
+		return 0;
+	}
+
+	if ((int) amount < 0) {
+		vaddr_t newStart = as->as_addrPtr - (vaddr_t)amount;
+		unsigned int regionCount = array_num(as->as_regions);
+		unsigned int i;
+		for (i = 0; i < regionCount; i++) {
+			struct region* reg = array_get(as->as_regions, i);
+			if (reg != NULL && reg->rg_vaddr >= newStart) {
+				array_remove(as->as_regions, i);
+				i--;
+				regionCount = array_num(as->as_regions);
+			}
+		}
+		as->as_addrPtr = newStart;
+		*retval = newStart;
+		return 0;
+
+	}
+
+	vaddr_t newRegionStart = as->as_addrPtr;
+	//kprintf("SBRK CALLED WITH PARAMS %d, newregion start = %x\n",(int)npages/ PAGE_SIZE, as->as_addrPtr);
+	as_define_region(as, newRegionStart, (int) amount, 1, 1, 0);
+
+	*retval = newRegionStart;
+	return 0;
 }

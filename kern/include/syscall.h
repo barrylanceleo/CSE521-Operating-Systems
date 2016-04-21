@@ -71,6 +71,9 @@ int sys_close(userptr_t fd, int32_t* retval);
 int sys_lseek(userptr_t fd, off_t seek_pos, userptr_t whence, off_t* retval);
 int sys_dup2(userptr_t oldfd, userptr_t newfd , int32_t* retval);
 
+// memory system calls
+int sys_sbrk(userptr_t npages, int32_t* retval);
+
 // process system calls
 
 int sys_fork(struct trapframe* tf, pid_t* pid);

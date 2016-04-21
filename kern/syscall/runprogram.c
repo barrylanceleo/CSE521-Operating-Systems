@@ -126,6 +126,7 @@ int runprogram2(char *progname, char** argv, unsigned long argc) {
 	}
 
 	/* Switch to it and activate it. */
+
 	struct addrspace *oldas = proc_setas(as);
 	if (oldas) {
 		as_destroy(oldas);
