@@ -5,6 +5,10 @@
 #include <addrspace.h>
 #include <array.h>
 #include <synch.h>
+#include <proc.h>
+#include <current.h>
+#include <kern/errno.h>
+#include <mips/tlb.h>
 
 // core map data structure
 struct core_map_entry* coremap;
@@ -104,26 +108,26 @@ void vm_bootstrap() {
 		panic("Unable to allocate space for coremap");
 	}
 
-	kprintf("Start of coremap: %u\n", first_paddr);
+	//kprintf("Start of coremap: %u\n", first_paddr);
 	coremap = (struct core_map_entry*) PADDR_TO_KVADDR(first_paddr);
 	first_paddr += coremap_size;
-	kprintf("End of coremap: %u\n", first_paddr);
+	//kprintf("End of coremap: %u\n", first_paddr);
 
 	// align the pages, the first page should start with an address which is a multiple of PAGE_SIZE
 	if (first_paddr % PAGE_SIZE != 0) {
 		first_paddr += PAGE_SIZE - (first_paddr % PAGE_SIZE);
-		kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size,
-				coremap_size / PAGE_SIZE + 1);
+		//kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size,
+				//coremap_size / PAGE_SIZE + 1);
 	} else {
-		kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size,
-				coremap_size / PAGE_SIZE);
+		//kprintf("CoreMap Size: %u bytes = %u pages\n", coremap_size,
+				//coremap_size / PAGE_SIZE);
 	}
 
 	// update the page count, may reduce due to space allocation for coremap
 	page_count = (last_paddr - first_paddr) / PAGE_SIZE;
-	kprintf("Pages available for use: %u\n", page_count);
+	//kprintf("Pages available for use: %u\n", page_count);
 
-	kprintf("Start of usable memory: %u\n", first_paddr);
+	//kprintf("Start of usable memory: %u\n", first_paddr);
 	// initialize the coremap
 	unsigned i;
 	for (i = 0; i < page_count; i++) {
@@ -140,11 +144,71 @@ void vm_bootstrap() {
 
 }
 
+static struct region* findRegionForFaultAddress(struct addrspace* as,
+		vaddr_t address) {
+	int regionCount = array_num(as->as_regions);
+	int i;
+	for (i = 0; i < regionCount; i++) {
+		struct region* reg = array_get(as->as_regions, i);
+		if (reg != NULL && reg->rg_vaddr <= address
+				&& (reg->rg_vaddr + reg->rg_size) > address) {
+			return reg;
+		}
+	}
+	return NULL;
+}
+
+static struct page* findPageForFaultAddress(struct addrspace* as,
+		vaddr_t faultaddress) {
+	int pageCount = array_num(as->as_pagetable);
+	int i;
+	for (i = 0; i < pageCount; i++) {
+		struct page *pageCandidate = array_get(as->as_pagetable, i);
+		if (pageCandidate != NULL
+				&& pageCandidate->pt_virtbase == faultaddress / PAGE_SIZE) {
+			return pageCandidate;
+		}
+	}
+	return NULL;
+}
+
+static int isWithinStack(struct addrspace* as, vaddr_t faultaddress) {
+	return (USERSTACK - faultaddress)/PAGE_SIZE <= as->as_stackPageCount + 1;
+}
+
 /* Fault handling function called by trap code */
 int vm_fault(int faulttype, vaddr_t faultaddress) {
 	// TODO implement this?
+	//kprintf("VMFault type = %d, address = %x\n", faulttype, faultaddress);
+	struct addrspace* as = proc_getas();
+	if (as == NULL) {
+		return ENOSYS;
+	}
+	struct region* reg = findRegionForFaultAddress(as, faultaddress);
+	if (reg == NULL) {
+		if(!isWithinStack(as,faultaddress)) {
+			return ENOSYS;
+		 } // TODO fill this
+
+	}
+	// TODO Check if it is a permission issue and return an error code in that case.
+
+	// get page
+	struct page* pg = findPageForFaultAddress(as, faultaddress);
+	if (pg == NULL) {
+		struct page* newpage = page_create(as, faultaddress);
+		pg = newpage;
+		if(isWithinStack(as, faultaddress)) {
+			as->as_stackPageCount++;
+		}
+	}
+
+	// load page address to tlb
+	/*kprintf("VMFault Writign to tlb type = %d, address = %x\n", faulttype,
+			faultaddress);*/
+	tlb_random(pg->pt_virtbase * PAGE_SIZE, (pg->pt_pagebase * PAGE_SIZE) | TLBLO_DIRTY | TLBLO_VALID );
+
 	(void) faulttype;
-	(void) faultaddress;
 	return 0;
 }
 
@@ -226,17 +290,14 @@ void free_kpages(vaddr_t addr) {
  * to the caller. But it should have been correct at some point in time.
  */
 unsigned int coremap_used_bytes() {
-
 	spinlock_acquire(&coremap_lock);
-
-	// traverse the coremap and find the number of alocated pages
+	// traverse the coremap and find the number of allocated pages
 	unsigned i, used_pages_count = 0;
 	for (i = 0; i < page_count; i++) {
 		if (cm_isEntryUsed(COREMAP(i))) {
 			used_pages_count++;
 		}
 	}
-
 	spinlock_release(&coremap_lock);
 	return used_pages_count * PAGE_SIZE;
 }

@@ -56,7 +56,8 @@ as_create(void) {
 		return NULL;
 	}
 	as->as_pagetable = array_create();
-	as->as_npages = 0;
+	as->as_regions = array_create();
+	as->as_stackPageCount = 0;
 	as->as_id = as_getNewAddrSpaceId();
 	/*
 	 * Initialize as needed.
@@ -66,17 +67,18 @@ as_create(void) {
 }
 
 int as_copy(struct addrspace *old, struct addrspace **ret) {
-	struct addrspace *newas;
+	(void) old;
 
+	struct addrspace *newas;
 	newas = as_create();
 	if (newas == NULL) {
 		return ENOMEM;
 	}
 
 	newas->as_id = as_getNewAddrSpaceId();
-
-	newas->as_npages = old->as_npages;
 	newas->as_pagetable = array_create();
+	//TODO copy page table entries into new as pagetable
+	newas->as_regions = array_create();
 	//TODO copy page table entries into new as pagetable
 
 	*ret = newas;
@@ -87,6 +89,25 @@ void as_destroy(struct addrspace *as) {
 	/*
 	 * Clean up as needed.
 	 */
+
+	// TODO
+	int regionCount = array_num(as->as_regions);
+	int i;
+	for (i = 0; i < regionCount; i++) {
+		struct region* reg = array_get(as->as_regions, 0);
+		kfree(reg);
+		array_remove(as->as_regions, 0);
+	}
+	array_destroy(as->as_regions);
+
+	int pageCount = array_num(as->as_pagetable);
+	for (i = 0; i < pageCount; i++) {
+		struct page* pg = array_get(as->as_pagetable, 0);
+		coremap_freeuserpages(pg->pt_pagebase * PAGE_SIZE);
+		kfree(pg);
+		array_remove(as->as_pagetable, 0);
+	}
+	array_destroy(as->as_pagetable);
 
 	kfree(as);
 }
@@ -131,14 +152,18 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	/*
 	 * Write this.
 	 */
+	struct region* newregion = (struct region*) kmalloc(sizeof(struct region));
 
-	(void) as;
-	(void) vaddr;
-	(void) memsize;
-	(void) readable;
-	(void) writeable;
-	(void) executable;
-	return ENOSYS;
+	newregion->executable = executable;
+	newregion->readable = readable;
+	newregion->writeable = writeable;
+
+	newregion->rg_size = memsize;
+	newregion->rg_vaddr = vaddr;
+	unsigned int index;
+	array_add(as->as_regions, newregion, &index);
+
+	return 0;
 }
 
 int as_prepare_load(struct addrspace *as) {
@@ -164,11 +189,18 @@ int as_define_stack(struct addrspace *as, vaddr_t *stackptr) {
 	 * Write this.
 	 */
 
-	(void) as;
-
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
-
+	as->as_stackPageCount = 0;
 	return 0;
+}
+
+struct page* page_create(struct addrspace* as, vaddr_t faultaddress) {
+	struct page* newpage = (struct page*) kmalloc(sizeof(struct page));
+	newpage->pt_virtbase = faultaddress / PAGE_SIZE;
+	newpage->pt_pagebase = coremap_allocuserpages(1, as) / PAGE_SIZE;
+	unsigned int idx;
+	array_add(as->as_pagetable, newpage, &idx);
+	return newpage;
 }
 

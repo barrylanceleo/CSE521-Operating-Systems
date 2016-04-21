@@ -61,7 +61,8 @@ struct addrspace {
         /* Put stuff here for your VM system */
         int as_id;
 		struct array* as_pagetable;
-		size_t as_npages;
+		struct array* as_regions;
+		size_t as_stackPageCount;
 #endif
 };
 
@@ -73,6 +74,14 @@ struct page {
 	int pt_valid:1;
 	int pt_reference:1;
 	//where is it ? stack or heap?
+};
+
+struct region {
+	vaddr_t rg_vaddr;
+	size_t rg_size;
+	int readable:1;
+	int writeable:1;
+	int executable:1;
 };
 
 /*
@@ -131,6 +140,11 @@ int               as_prepare_load(struct addrspace *as);
 int               as_complete_load(struct addrspace *as);
 int               as_define_stack(struct addrspace *as, vaddr_t *initstackptr);
 
+
+/**
+ * Functions to handle page operations
+ */
+struct page* page_create(struct addrspace* as, vaddr_t faultaddress);
 
 /*
  * Functions in loadelf.c
