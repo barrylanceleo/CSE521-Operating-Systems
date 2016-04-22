@@ -86,29 +86,40 @@ proc_create(const char *name) {
 	/** file table */
 
 	proc->p_filetable = array_create();
-	//kprintf("TEMPPP: Newly created filetable %p",proc->p_filetable);
+	array_preallocate(proc->p_filetable, 1024);
+	//kprintf("TEMPPP: Newly created filetable %p\n",proc->p_filetable);
 	if (proc->p_filetable == NULL) {
+		spinlock_cleanup(&proc->p_lock);
 		kfree(proc->p_name);
 		kfree(proc);
-
 		return NULL;
 	}
 	proc->p_waitcvlock = lock_create(name);
 	if (proc->p_waitcvlock == NULL) {
-		kfree(proc->p_name);
 		array_destroy(proc->p_filetable);
+		spinlock_cleanup(&proc->p_lock);
+		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
 
 	proc->p_waitcv = cv_create(name);
 	if (proc->p_waitcv == NULL) {
+		lock_destroy(proc->p_waitcvlock);
+		array_destroy(proc->p_filetable);
+		spinlock_cleanup(&proc->p_lock);
+		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
 
 	proc->p_opslock = lock_create(name);
 	if (proc->p_opslock == NULL) {
+		cv_destroy(proc->p_waitcv);
+		lock_destroy(proc->p_waitcvlock);
+		array_destroy(proc->p_filetable);
+		spinlock_cleanup(&proc->p_lock);
+		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
@@ -207,7 +218,6 @@ void proc_destroy(struct proc *proc) {
 
 	//TODO destroy everything created in create
 
-
 	KASSERT(proc->p_numthreads == 0);
 	spinlock_cleanup(&proc->p_lock);
 
@@ -215,7 +225,7 @@ void proc_destroy(struct proc *proc) {
 	lock_destroy(proc->p_waitcvlock);
 
 	lock_destroy(proc->p_opslock);
-
+	removeFrom_processtable(proc->p_pid);
 	as_deactivate();
 
 	// TODO destroy the AS

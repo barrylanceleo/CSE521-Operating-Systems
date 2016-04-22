@@ -16,17 +16,20 @@ static struct process_table {
 int init_processtable() {
 //	kprintf("TEMPPPP: PROCESSTABLE CREATE\n");
 	s_processtable.pt_processes = array_create();
+	array_preallocate(s_processtable.pt_processes, 1024);
 	s_processtable.pt_pidcounter = 2;
 	s_processtable.pt_freepids = array_create();
+	array_preallocate(s_processtable.pt_freepids, 1024);
+	//kprintf("Newly created pt_processes: %p, pt_freepids: %p\n", s_processtable.pt_processes, s_processtable.pt_freepids);
+
 	return 0;
 }
 
 static int fetchPid() {
 	int arrnum = array_num(s_processtable.pt_freepids);
 	if (arrnum > 0) {
-		int *pid = ((int*) array_get(s_processtable.pt_freepids, arrnum - 1));
-		int ret = *pid;
-		kfree(pid);
+		void *pid =  array_get(s_processtable.pt_freepids, arrnum - 1);
+		int ret = (int)pid;
 		//TODO hold the freed int's in another free list to avoid repeated malloc's
 		array_remove(s_processtable.pt_freepids, arrnum - 1);
 		return ret;
@@ -47,9 +50,9 @@ int addTo_processtable(struct proc* process) {
 
 static int reclaimpid(int pid) {
 	unsigned int idx;
-	int* val = kmalloc(sizeof(int));
-	*val = pid;
-	if (array_add(s_processtable.pt_freepids, val, &idx)) {
+	//int* val = kmalloc(sizeof(int));
+	//*val = pid;
+	if (array_add(s_processtable.pt_freepids, (void*)pid, &idx)) {
 		return 1;
 	}
 	return 0;

@@ -58,7 +58,9 @@ as_create(void) {
 		return NULL;
 	}
 	as->as_pagetable = array_create();
+	array_preallocate(as->as_pagetable, 1024);
 	as->as_regions = array_create();
+	//kprintf("Newly created pagetable: %p, region: %p\n", as->as_pagetable, as->as_regions);
 	as->as_id = as_getNewAddrSpaceId();
 	as->as_heapBase = 0;
 	as->as_stackBase = 0;
@@ -234,10 +236,10 @@ struct page* page_create(struct addrspace* as, vaddr_t faultaddress) {
 		return NULL;
 	}
 	unsigned int idx;
-	if(as->as_pagetable->max - 1 == array_num(as->as_pagetable)) {
+	/*if(as->as_pagetable->max - 1 == array_num(as->as_pagetable)) {
 		int size = array_num(as->as_pagetable);
 		array_preallocate(as->as_pagetable, size*2);
-	}
+	}*/
 	array_add(as->as_pagetable, newpage, &idx);
 	return newpage;
 }
