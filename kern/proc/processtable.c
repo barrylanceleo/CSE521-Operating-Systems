@@ -6,6 +6,7 @@
  */
 #include <processtable.h>
 #include <array.h>
+#include <kern/errno.h>
 
 static struct process_table {
 	struct array* pt_processes; // holds the processes in the process table
@@ -16,10 +17,24 @@ static struct process_table {
 int init_processtable() {
 //	kprintf("TEMPPPP: PROCESSTABLE CREATE\n");
 	s_processtable.pt_processes = array_create();
-	array_preallocate(s_processtable.pt_processes, 1024);
+	if(s_processtable.pt_processes == NULL) {
+			return -1;
+	}
+	if(array_preallocate(s_processtable.pt_processes, 1024) == ENOMEM) {
+		array_destroy(s_processtable.pt_processes);
+		return -1;
+	}
 	s_processtable.pt_pidcounter = 2;
 	s_processtable.pt_freepids = array_create();
-	array_preallocate(s_processtable.pt_freepids, 1024);
+	if(s_processtable.pt_freepids == NULL) {
+		array_destroy(s_processtable.pt_processes);
+		return -1;
+	}
+	if(array_preallocate(s_processtable.pt_freepids, 1024) == ENOMEM) {
+		array_destroy(s_processtable.pt_freepids);
+		array_destroy(s_processtable.pt_processes);
+		return -1;
+	}
 	//kprintf("Newly created pt_processes: %p, pt_freepids: %p\n", s_processtable.pt_processes, s_processtable.pt_freepids);
 
 	return 0;

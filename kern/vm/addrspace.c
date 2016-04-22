@@ -58,8 +58,27 @@ as_create(void) {
 		return NULL;
 	}
 	as->as_pagetable = array_create();
-	array_preallocate(as->as_pagetable, 1024);
+	if(as->as_pagetable == NULL) {
+		kfree(as);
+		return NULL;
+	}
+	if (array_preallocate(as->as_pagetable, 1024) == ENOMEM) {
+		array_destroy(as->as_pagetable);
+		kfree(as);
+		return NULL;
+	}
 	as->as_regions = array_create();
+	if(as->as_regions == NULL) {
+		array_destroy(as->as_pagetable);
+		kfree(as);
+		return NULL;
+	}
+	if (array_preallocate(as->as_regions, 1024) == ENOMEM) {
+		array_destroy(as->as_regions);
+		array_destroy(as->as_pagetable);
+		kfree(as);
+		return NULL;
+	}
 	//kprintf("Newly created pagetable: %p, region: %p\n", as->as_pagetable, as->as_regions);
 	as->as_id = as_getNewAddrSpaceId();
 	as->as_heapBase = 0;

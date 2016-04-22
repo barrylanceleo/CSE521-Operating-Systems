@@ -86,7 +86,6 @@ proc_create(const char *name) {
 	/** file table */
 
 	proc->p_filetable = array_create();
-	array_preallocate(proc->p_filetable, 1024);
 	//kprintf("TEMPPP: Newly created filetable %p\n",proc->p_filetable);
 	if (proc->p_filetable == NULL) {
 		spinlock_cleanup(&proc->p_lock);
@@ -94,6 +93,14 @@ proc_create(const char *name) {
 		kfree(proc);
 		return NULL;
 	}
+	if(array_preallocate(proc->p_filetable, 1024) == ENOMEM) {
+		array_destroy(proc->p_filetable);
+		spinlock_cleanup(&proc->p_lock);
+		kfree(proc->p_name);
+		kfree(proc);
+		return NULL;
+	}
+
 	proc->p_waitcvlock = lock_create(name);
 	if (proc->p_waitcvlock == NULL) {
 		array_destroy(proc->p_filetable);
