@@ -207,7 +207,6 @@ int k_waitpid(pid_t k_pid, int* status, pid_t* retval) {
 	lock_acquire(targetprocess->p_waitcvlock);
 	while (true) {
 		if (targetprocess->p_state == PS_COMPLETED) {
-//			kprintf("TEMPPPP PS Completed:\n");
 			*status = targetprocess->p_returnvalue;
 			lock_release(targetprocess->p_waitcvlock);
 			proc_destroy(targetprocess);
