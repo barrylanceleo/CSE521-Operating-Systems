@@ -213,12 +213,15 @@ int as_complete_load(struct addrspace *as) {
 	(void) as;
 	return 0;
 }
-
+#define STACKSIZE (4*1024*1024)
 int as_define_stack(struct addrspace *as, vaddr_t *stackptr) {
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
 	as->as_stackPageCount = 0;
+	vaddr_t oldPtr = as->as_addrPtr;
+	as_define_region(as, USERSTACK - STACKSIZE, STACKSIZE, 1, 1, 0);
+	as->as_addrPtr = oldPtr;
 	return 0;
 }
 
@@ -231,6 +234,10 @@ struct page* page_create(struct addrspace* as, vaddr_t faultaddress) {
 		return NULL;
 	}
 	unsigned int idx;
+	if(as->as_pagetable->max - 1 == array_num(as->as_pagetable)) {
+		int size = array_num(as->as_pagetable);
+		array_preallocate(as->as_pagetable, size*2);
+	}
 	array_add(as->as_pagetable, newpage, &idx);
 	return newpage;
 }

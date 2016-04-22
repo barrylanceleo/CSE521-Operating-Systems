@@ -176,7 +176,11 @@ static struct page* findPageForFaultAddress(struct addrspace* as,
 }
 
 static int isWithinStack(struct addrspace* as, vaddr_t faultaddress) {
-	return (USERSTACK - faultaddress) / PAGE_SIZE <= as->as_stackPageCount + 1;
+	int st = (USERSTACK - faultaddress) / PAGE_SIZE <= as->as_stackPageCount + 1;
+	/*if(st){
+		kprintf("%x was the stack address queried\n", faultaddress);
+	}*/
+	return st;
 }
 
 /* Fault handling function called by trap code */
@@ -202,7 +206,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 		struct page* newpage = page_create(as, faultaddress);
 		pg = newpage;
 		if (isWithinStack(as, faultaddress)) {
-			kprintf("Created a new stack page %d ,%u\n", as->as_stackPageCount,array_num(as->as_pagetable));
+			//kprintf("Created a new stack page %d ,%u\n", as->as_stackPageCount,array_num(as->as_pagetable));
 			as->as_stackPageCount++;
 		}
 	}
@@ -407,7 +411,7 @@ int sys_sbrk(userptr_t amount, int32_t* retval) {
 	}
 
 	if ((int) amount < 0) {
-		if((int)(amount + as->as_addrPtr) <= (int)(as->as_heapBase)){
+		if((int)(amount + as->as_addrPtr) < (int)(as->as_heapBase)){
 			*retval = -1;
 			return EINVAL;
 		}
