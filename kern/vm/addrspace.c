@@ -86,6 +86,9 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 	for (i = 0; i < array_num(old->as_regions); i++) {
 		struct region* reg = array_get(old->as_regions, i);
 		struct region* newReg = (struct region*) kmalloc(sizeof(struct region));
+		if(newReg == NULL) {
+			return ENOMEM;
+		}
 		newReg->executable = reg->executable;
 		newReg->readable = reg->readable;
 		newReg->rg_size = reg->rg_size;
@@ -97,6 +100,9 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 	for (i = 0; i < array_num(old->as_pagetable); i++) {
 		struct page* pg = array_get(old->as_pagetable, i);
 		struct page* newPg = page_create(newas, pg->pt_virtbase * PAGE_SIZE);
+		if(newPg == NULL) {
+			return ENOMEM;
+		}
 		memmove(PADDR_TO_KVADDR((void*) (newPg->pt_pagebase * PAGE_SIZE)),
 				PADDR_TO_KVADDR((void*) (pg->pt_pagebase * PAGE_SIZE)),
 				PAGE_SIZE);
