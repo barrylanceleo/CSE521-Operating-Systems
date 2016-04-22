@@ -456,7 +456,7 @@ static int filetable_addentryforvnode(struct proc* process, int permission,
 	handle->fh_offset = 0;
 	handle->fh_permission = permission;
 	handle->fh_vnode = vn;
-	handle->fh_refcount = 1;
+	handle->fh_refcount = 0;
 	handle->fh_lock = lock_create("fhl");
 	filehandle_incref(handle);
 
@@ -583,18 +583,19 @@ void filetable_empty(struct array* ft) {
 
 void filehandle_destroy(struct file_handle* handle) {
 
-	if(handle->fh_vnode == console_vnode) {
-		return;
-	}
 	lock_acquire(handle->fh_lock);
 	struct lock* l = handle->fh_lock;
 	handle->fh_refcount--;
+	//kprintf("In filehandle_destroy(), handle->fh_refcount: %d\n", handle->fh_refcount);
 	// close the vnode based on the refcount
 	if (handle->fh_refcount == 0) {
-		vfs_close(handle->fh_vnode);
+		if(handle->fh_vnode != console_vnode) {
+			vfs_close(handle->fh_vnode);
+		}
 		kfree(handle);
 		lock_release(l);
 		lock_destroy(l);
+		return;
 	}
 	lock_release(l);
 }
