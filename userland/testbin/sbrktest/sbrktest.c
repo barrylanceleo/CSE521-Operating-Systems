@@ -289,6 +289,7 @@ expect_segfault(segfault_fn func)
 		func();	// This exits
 	} else {
 		result = waitpid(pid, &status, 0);
+		//errx(1, "status = %d, WIFSIGNALED(status) = %d, signal = %d \n", status, WIFSIGNALED(status), WTERMSIG(status));
 		if (result == -1) {
 			err(1, "waitpid");
 		}

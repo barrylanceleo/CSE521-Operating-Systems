@@ -119,7 +119,7 @@ kill_curthread(vaddr_t epc, unsigned code, vaddr_t vaddr)
 	//panic("I don't know how to handle this\n");
 	if(sig){
 		//sig = _MKWAIT_SIG(sig);
-		sys__exit(sig);
+		k_exit(_MKWAIT_SIG(sig));
 	}
 
 }

@@ -175,13 +175,15 @@ static struct page* findPageForFaultAddress(struct addrspace* as,
 	return NULL;
 }
 
+/*
 static int isWithinStack(struct addrspace* as, vaddr_t faultaddress) {
 	int st = (USERSTACK - faultaddress) / PAGE_SIZE <= as->as_stackPageCount + 1;
-	/*if(st){
+	if(st){
 		kprintf("%x was the stack address queried\n", faultaddress);
-	}*/
+	}
 	return st;
 }
+*/
 
 /* Fault handling function called by trap code */
 int vm_fault(int faulttype, vaddr_t faultaddress) {
@@ -192,10 +194,10 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	}
 	struct region* reg = findRegionForFaultAddress(as, faultaddress);
 	if (reg == NULL) {
-		if (!isWithinStack(as, faultaddress)) {
+		//if (!isWithinStack(as, faultaddress)) {
 			//kprintf("VMFault returned ENOSYS for type = %d, address = %x\n", faulttype, faultaddress);
 			return EFAULT;
-		} // TODO fill this
+		//} // TODO fill this
 
 	}
 	// TODO Check if it is a permission issue and return an error code in that case.
@@ -205,10 +207,10 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	if (pg == NULL) {
 		struct page* newpage = page_create(as, faultaddress);
 		pg = newpage;
-		if (isWithinStack(as, faultaddress)) {
+		//if (isWithinStack(as, faultaddress)) {
 			//kprintf("Created a new stack page %d ,%u\n", as->as_stackPageCount,array_num(as->as_pagetable));
-			as->as_stackPageCount++;
-		}
+			//as->as_stackPageCount++;
+		//}
 	}
 	if(pg == NULL) {
 		return EFAULT;
@@ -370,6 +372,9 @@ static int reduceHeapSize(userptr_t amount, int32_t* retval,
 	}
 	for (i = 0; i < regionCount; i++) {
 		struct region* reg = array_get(as->as_regions, i);
+		if( reg != NULL && reg->rg_vaddr >= as->as_stackBase && reg->rg_vaddr + reg->rg_size >= as->as_stackBase) {
+			continue;
+		}
 		if (reg != NULL && reg->rg_vaddr >= newStart) {
 			removePagesWithinRegion(as, reg);
 			array_remove(as->as_regions, i);
@@ -402,6 +407,8 @@ int sys_sbrk(userptr_t amount, int32_t* retval) {
 		return ENOMEM;
 	}
 	struct addrspace* as = proc_getas();
+	//kprintf("SBRK CALLED WITH PARAMS %x, newregion start = %x\n", (int) amount,
+	//				as->as_addrPtr);
 	if(as->as_heapBase == 0) {
 		as->as_heapBase= as->as_addrPtr;
 	}
@@ -420,8 +427,6 @@ int sys_sbrk(userptr_t amount, int32_t* retval) {
 	}
 
 	vaddr_t newRegionStart = as->as_addrPtr;
-	/*kprintf("SBRK CALLED WITH PARAMS %x, newregion start = %x\n", (int) amount,
-			newRegionStart);*/
 	as_define_region(as, newRegionStart, (int) amount, 1, 1, 0);
 
 	*retval = newRegionStart;

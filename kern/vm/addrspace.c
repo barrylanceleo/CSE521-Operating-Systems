@@ -59,9 +59,9 @@ as_create(void) {
 	}
 	as->as_pagetable = array_create();
 	as->as_regions = array_create();
-	as->as_stackPageCount = 0;
 	as->as_id = as_getNewAddrSpaceId();
 	as->as_heapBase = 0;
+	as->as_stackBase = 0;
 	/*
 	 * Initialize as needed.
 	 */
@@ -77,7 +77,7 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 	if (newas == NULL) {
 		return ENOMEM;
 	}
-	newas->as_stackPageCount = old->as_stackPageCount;
+	newas->as_stackBase = old->as_stackBase;
 	newas->as_addrPtr = old->as_addrPtr;
 	newas->as_heapBase = old->as_heapBase;
 	unsigned int i = 0;
@@ -218,10 +218,10 @@ int as_define_stack(struct addrspace *as, vaddr_t *stackptr) {
 
 	/* Initial user-level stack pointer */
 	*stackptr = USERSTACK;
-	as->as_stackPageCount = 0;
 	vaddr_t oldPtr = as->as_addrPtr;
 	as_define_region(as, USERSTACK - STACKSIZE, STACKSIZE, 1, 1, 0);
 	as->as_addrPtr = oldPtr;
+	as->as_stackBase = USERSTACK - STACKSIZE;
 	return 0;
 }
 

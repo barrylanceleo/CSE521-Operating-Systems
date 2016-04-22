@@ -177,4 +177,6 @@ int runprogram2(char *progname, char** argv, unsigned long argc);
 
 int k_waitpid(pid_t k_pid, int* status, pid_t* retval);
 
+int k_exit(int exitcode);
+
 #endif /* _PROC_H_ */

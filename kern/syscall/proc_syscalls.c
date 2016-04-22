@@ -110,7 +110,8 @@ static int copyargstokernel(userptr_t uargs, char** argv, unsigned long* argc) {
 			return EFAULT;
 		}
 		size_t len = 0;
-		if((unsigned int)uaddress == 0x40000000 || (unsigned int)uaddress == 0x80000000) {
+		if ((unsigned int) uaddress == 0x40000000
+				|| (unsigned int) uaddress == 0x80000000) {
 			return EFAULT;
 		}
 		int w = copyinstr(uaddress, buf, ARG_MAX - readlen, &len);
@@ -119,7 +120,7 @@ static int copyargstokernel(userptr_t uargs, char** argv, unsigned long* argc) {
 		(void) w;
 
 		if (len == 0) {
-				//kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
+			//kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
 			return 0;
 		}
 
@@ -226,7 +227,7 @@ int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 	int k_status = 0;
 
 	// check for null pointer reference
-	if(status == NULL){
+	if (status == NULL) {
 		return result;
 	}
 
@@ -262,7 +263,7 @@ int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 
 	int err_code = 0;
 	err_code = copyout(&k_status, status, sizeof(int));
-	if(err_code){
+	if (err_code) {
 		*retval = -1;
 		return err_code;
 	}
@@ -270,12 +271,12 @@ int sys_waitpid(userptr_t userpid, userptr_t status, userptr_t options,
 
 }
 
-int sys__exit(int exitcode) {
+int k_exit(int exitcode) {
 	int result = 0;
 	struct proc* curprocess = curproc;
 
 	lock_acquire(curprocess->p_waitcvlock);
-	curprocess->p_returnvalue = _MKWAIT_EXIT(exitcode);
+	curprocess->p_returnvalue = exitcode;
 	curprocess->p_state = PS_COMPLETED;
 	//kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);
@@ -284,5 +285,9 @@ int sys__exit(int exitcode) {
 	thread_exit(); // stop execution of current thread
 
 	return result; // Will not be executed
+}
+
+int sys__exit(int exitcode) {
+	return k_exit(_MKWAIT_EXIT(exitcode));
 }
 
