@@ -103,12 +103,17 @@ proc_create(const char *name) {
 
 	proc->p_waitcv = cv_create(name);
 	if (proc->p_waitcv == NULL) {
+		lock_destroy(proc->p_waitcvlock);
+		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
 
 	proc->p_opslock = lock_create(name);
 	if (proc->p_opslock == NULL) {
+		lock_destroy(proc->p_waitcvlock);
+		cv_destroy(proc->p_waitcv);
+		kfree(proc->p_name);
 		kfree(proc);
 		return NULL;
 	}
@@ -216,9 +221,7 @@ void proc_destroy(struct proc *proc) {
 
 	lock_destroy(proc->p_opslock);
 
-	as_deactivate();
-
-	// TODO destroy the AS
+	//as_deactivate();
 
 	kfree(proc->p_name);
 	kfree(proc);
