@@ -202,7 +202,7 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 		struct page* newpage = page_create(as, faultaddress);
 		pg = newpage;
 		if (isWithinStack(as, faultaddress)) {
-			kprintf("Created a new stack page %d ,%u\n", as->as_stackPageCount,array_num(as->as_pagetable));
+			//kprintf("Created a new stack page %d ,%u\n", as->as_stackPageCount,array_num(as->as_pagetable));
 			as->as_stackPageCount++;
 		}
 	}
