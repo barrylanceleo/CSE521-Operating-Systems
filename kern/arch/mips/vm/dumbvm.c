@@ -38,6 +38,7 @@
 #include <mips/tlb.h>
 #include <addrspace.h>
 #include <vm.h>
+#include <syscall.h>
 
 /*
  * Dumb MIPS-only "VM system" that is intended to only be just barely
@@ -440,5 +441,13 @@ as_copy(struct addrspace *old, struct addrspace **ret)
 		DUMBVM_STACKPAGES*PAGE_SIZE);
 
 	*ret = new;
+	return 0;
+}
+
+// dummy sbrk
+int sys_sbrk(userptr_t npages, int32_t* retval) {
+
+	(void) npages;
+	(void) retval;
 	return 0;
 }
