@@ -61,6 +61,7 @@ as_create(void) {
 	as->as_regions = array_create();
 	as->as_stackPageCount = 0;
 	as->as_id = as_getNewAddrSpaceId();
+	as->as_heapBase = 0;
 	/*
 	 * Initialize as needed.
 	 */
@@ -78,6 +79,7 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 	}
 	newas->as_stackPageCount = old->as_stackPageCount;
 	newas->as_addrPtr = old->as_addrPtr;
+	newas->as_heapBase = old->as_heapBase;
 	unsigned int i = 0;
 	for (i = 0; i < array_num(old->as_regions); i++) {
 		struct region* reg = array_get(old->as_regions, i);
@@ -94,7 +96,8 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 		struct page* pg = array_get(old->as_pagetable, i);
 		struct page* newPg = page_create(newas, pg->pt_virtbase * PAGE_SIZE);
 		memmove(PADDR_TO_KVADDR((void*) (newPg->pt_pagebase * PAGE_SIZE)),
-				PADDR_TO_KVADDR((void*) (pg->pt_pagebase * PAGE_SIZE)), PAGE_SIZE);
+				PADDR_TO_KVADDR((void*) (pg->pt_pagebase * PAGE_SIZE)),
+				PAGE_SIZE);
 	}
 	*ret = newas;
 	return 0;
@@ -181,13 +184,15 @@ int as_define_region(struct addrspace *as, vaddr_t vaddr, size_t memsize,
 	newregion->rg_vaddr = vaddr;
 	unsigned int index;
 	array_add(as->as_regions, newregion, &index);
-	// TODO adjust this to be the next closest multiple of 4096
-	as->as_addrPtr = vaddr + memsize ;
-	if(as->as_addrPtr % PAGE_SIZE != 0) {
-		as->as_addrPtr = ((as->as_addrPtr / PAGE_SIZE) + 1 ) * PAGE_SIZE;
+	// adjust this to be the next closest multiple of 4096
+	as->as_addrPtr = vaddr + memsize;
+	if (as->as_addrPtr % PAGE_SIZE != 0) {
+		as->as_addrPtr = ((as->as_addrPtr / PAGE_SIZE) + 1) * PAGE_SIZE;
 		// an ugly way round it to a multiple of 4096
 	}
-
+	/*kprintf("New region created : as id : %d start = %x, end = %x, addrPtr = %x\n",
+			as->as_id, newregion->rg_vaddr, newregion->rg_vaddr + newregion->rg_size,
+			as->as_addrPtr);*/
 	return 0;
 }
 
@@ -221,6 +226,10 @@ struct page* page_create(struct addrspace* as, vaddr_t faultaddress) {
 	struct page* newpage = (struct page*) kmalloc(sizeof(struct page));
 	newpage->pt_virtbase = faultaddress / PAGE_SIZE;
 	newpage->pt_pagebase = coremap_allocuserpages(1, as) / PAGE_SIZE;
+	if(newpage->pt_pagebase == 0) {
+		kfree(newpage);
+		return NULL;
+	}
 	unsigned int idx;
 	array_add(as->as_pagetable, newpage, &idx);
 	return newpage;

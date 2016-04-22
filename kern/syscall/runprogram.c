@@ -58,8 +58,8 @@ static void copyoutargv(userptr_t uargv, char** argv, int argc,
 		myptr+=len;
 	}
 	*stackptr = (vaddr_t)(uargv - offset); // Dont touch stackptr from here
-	//kprintf("TEMPPPP: stackptr = uargv - offset [%p=%p-%d]\n", (void*)*stackptr, uargv,
-//			offset);
+	/*kprintf("TEMPPPP: stackptr = uargv - offset [%p=%p-%d]\n", (void*)*stackptr, uargv,
+			offset);*/
 
 	userptr_t address_ptr = (userptr_t)*stackptr;
 	userptr_t buf_ptr = uargv;
@@ -83,7 +83,7 @@ static void copyoutargv(userptr_t uargv, char** argv, int argc,
 				buf[k] = strsize > 0 ? *(myptr + j) : '\0'; j++;
 				strsize--;
 			}
-		//	kprintf("TEMPPPP: buf = addr [%s=>%p]\n", buf, (void*)bufstr);
+			//kprintf("TEMPPPP: buf = addr [%s=>%p]\n", buf, (void*)bufstr);
 			copyout(buf, bufstr, 4);
 			bufstr += 4;
 			if (strsize == 0) {

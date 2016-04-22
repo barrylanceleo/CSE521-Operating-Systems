@@ -114,12 +114,12 @@ static int copyargstokernel(userptr_t uargs, char** argv, unsigned long* argc) {
 			return EFAULT;
 		}
 		int w = copyinstr(uaddress, buf, ARG_MAX - readlen, &len);
-		//kprintf("TEMPPPP: '%s'%p, '%s'%p = buf!!!\n", *argv , *argv, buf, buf);
+		//kprintf("TEMPPPP: '%s' @%p, '%s' @%p = buf!!!\n", *argv , *argv, buf, buf);
 
 		(void) w;
 
 		if (len == 0) {
-			//	kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
+				//kprintf("TEMPPPP: %lu = argc!!!\n", *argc);
 			return 0;
 		}
 
@@ -173,7 +173,6 @@ int sys_execv(userptr_t program, userptr_t args, int32_t* retval) {
 	}
 
 	if (argc == 0) {
-
 		return runprogram2(progname, NULL, 0);
 	} else {
 		return runprogram2(progname, &argv, argc);

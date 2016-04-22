@@ -189,15 +189,6 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 	struct region* reg = findRegionForFaultAddress(as, faultaddress);
 	if (reg == NULL) {
 		if (!isWithinStack(as, faultaddress)) {
-			/*int regionCount = array_num(as->as_regions);
-			 kprintf("Checking region count :%d\n ",regionCount);
-			 int i;
-			 for (i = 0; i < regionCount; i++) {
-			 struct region* reg = array_get(as->as_regions, i);
-			 (void)reg;
-			 //kprintf("Checking region : base = %x, end=%x, faultaddress =%x\n ",reg->rg_vaddr, (reg->rg_vaddr + reg->rg_size), faultaddress);
-			 }*/
-
 			//kprintf("VMFault returned ENOSYS for type = %d, address = %x\n", faulttype, faultaddress);
 			return EFAULT;
 		} // TODO fill this
@@ -211,8 +202,12 @@ int vm_fault(int faulttype, vaddr_t faultaddress) {
 		struct page* newpage = page_create(as, faultaddress);
 		pg = newpage;
 		if (isWithinStack(as, faultaddress)) {
+			kprintf("Created a new stack page %d ,%u\n", as->as_stackPageCount,array_num(as->as_pagetable));
 			as->as_stackPageCount++;
 		}
+	}
+	if(pg == NULL) {
+		return EFAULT;
 	}
 
 	// load page address to tlb
@@ -328,39 +323,101 @@ void vm_tlbshootdown(const struct tlbshootdown * tlb) {
 //TODO implement this. but what is this?
 }
 
+static void removePagesWithinRegion(struct addrspace* as, struct region* reg) {
+	int pageCount = array_num(as->as_pagetable);
+	int i;
+	for (i = 0; i < pageCount; i++) {
+		struct page *pageCandidate = array_get(as->as_pagetable, i);
+		if (pageCandidate != NULL
+				&& pageCandidate->pt_virtbase >= reg->rg_vaddr / PAGE_SIZE
+				&& pageCandidate->pt_virtbase
+						<= (reg->rg_vaddr + reg->rg_size) / PAGE_SIZE) {
+			array_remove(as->as_pagetable, i);
+			coremap_freeuserpages(pageCandidate->pt_pagebase * PAGE_SIZE);
+			kfree(pageCandidate);
+			i--;
+			pageCount = array_num(as->as_pagetable);
+		}
+	}
+}
+
+static void invalidateTlb() {
+	int spl = splhigh();
+	int i;
+	for (i = 0; i < NUM_TLB; i++) {
+		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
+	}
+	splx(spl);
+}
+
+static int reduceHeapSize(userptr_t amount, int32_t* retval,
+		struct addrspace* as) {
+	//kprintf("AMOUNT : %d, Current Pointer = %x\n", (int) amount,
+	//		as->as_addrPtr);
+	vaddr_t newStart = as->as_addrPtr + (vaddr_t) amount;
+	vaddr_t oldStart = as->as_addrPtr;
+	unsigned int regionCount = array_num(as->as_regions);
+	unsigned int i;
+	if (as->as_heapBase > newStart) {
+		//kprintf("Invalid because it falls within code page %x\n",
+		//		codepage->rg_vaddr + codepage->rg_size);
+		*retval = -1;
+		return ENOMEM;
+	}
+	for (i = 0; i < regionCount; i++) {
+		struct region* reg = array_get(as->as_regions, i);
+		if (reg != NULL && reg->rg_vaddr >= newStart) {
+			removePagesWithinRegion(as, reg);
+			array_remove(as->as_regions, i);
+			kfree(reg);
+			i--;
+			regionCount = array_num(as->as_regions);
+		} else if (reg != NULL && reg->rg_vaddr <= newStart && reg->rg_vaddr  + reg->rg_size >= newStart) {
+			struct region tempReg;
+			tempReg.rg_vaddr = newStart;
+			tempReg.rg_size = newStart - (reg->rg_vaddr + reg->rg_size);
+			reg->rg_size = newStart - reg->rg_vaddr;
+			removePagesWithinRegion(as, &tempReg);
+		}
+	}
+	invalidateTlb();
+	as->as_addrPtr = newStart;
+	*retval = oldStart;
+	//kprintf("retval is = %x\n", as->as_addrPtr);
+	return 0;
+}
+
 int sys_sbrk(userptr_t amount, int32_t* retval) {
-	// TODO implement this
 	*retval = 0;
 	if ((int) amount % PAGE_SIZE != 0) {
 		*retval = -1;
 		return EINVAL;
 	}
+	if((int)amount > 1024 *256*PAGE_SIZE) {
+		*retval = -1;
+		return ENOMEM;
+	}
 	struct addrspace* as = proc_getas();
+	if(as->as_heapBase == 0) {
+		as->as_heapBase= as->as_addrPtr;
+	}
 	if (amount == 0) {
 		*retval = as->as_addrPtr;
 		return 0;
 	}
 
 	if ((int) amount < 0) {
-		vaddr_t newStart = as->as_addrPtr - (vaddr_t)amount;
-		unsigned int regionCount = array_num(as->as_regions);
-		unsigned int i;
-		for (i = 0; i < regionCount; i++) {
-			struct region* reg = array_get(as->as_regions, i);
-			if (reg != NULL && reg->rg_vaddr >= newStart) {
-				array_remove(as->as_regions, i);
-				i--;
-				regionCount = array_num(as->as_regions);
-			}
+		if((int)(amount + as->as_addrPtr) <= (int)(as->as_heapBase)){
+			*retval = -1;
+			return EINVAL;
 		}
-		as->as_addrPtr = newStart;
-		*retval = newStart;
-		return 0;
+		return reduceHeapSize(amount, retval, as);
 
 	}
 
 	vaddr_t newRegionStart = as->as_addrPtr;
-	//kprintf("SBRK CALLED WITH PARAMS %d, newregion start = %x\n",(int)npages/ PAGE_SIZE, as->as_addrPtr);
+	/*kprintf("SBRK CALLED WITH PARAMS %x, newregion start = %x\n", (int) amount,
+			newRegionStart);*/
 	as_define_region(as, newRegionStart, (int) amount, 1, 1, 0);
 
 	*retval = newRegionStart;

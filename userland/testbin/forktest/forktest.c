@@ -128,7 +128,6 @@ dowait(int nowait, int pid)
 	}
 	if (pid==0) {
 		/* in the fork in question we were the child; exit */
-		warn("EXITING HEREEE %d\n", getpid());
 		exit(0);
 	}
 

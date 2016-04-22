@@ -64,6 +64,7 @@ struct addrspace {
 		struct array* as_regions;
 		size_t as_stackPageCount;
 		vaddr_t as_addrPtr;
+		vaddr_t as_heapBase;
 #endif
 };
 
