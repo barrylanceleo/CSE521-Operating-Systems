@@ -411,7 +411,7 @@ int sys_sbrk(userptr_t amount, int32_t* retval) {
 	}
 
 	if ((int) amount < 0) {
-		if((int)(amount + as->as_addrPtr) < (int)(as->as_heapBase)){
+		if((int)(amount + as->as_addrPtr) <	 (int)(as->as_heapBase)){
 			*retval = -1;
 			return EINVAL;
 		}
