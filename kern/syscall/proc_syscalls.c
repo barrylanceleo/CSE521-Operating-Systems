@@ -279,6 +279,8 @@ int k_exit(int exitcode) {
 	curprocess->p_returnvalue = exitcode;
 	curprocess->p_state = PS_COMPLETED;
 	//kprintf("TEMPPPP: PS Set to completed %d in pid: %d\n", exitcode, curprocess->p_pid);
+	as_destroy(curprocess->p_addrspace);
+	curprocess->p_addrspace = NULL;
 	cv_broadcast(curprocess->p_waitcv, curprocess->p_waitcvlock);
 	lock_release(curprocess->p_waitcvlock);
 

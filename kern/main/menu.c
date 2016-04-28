@@ -138,9 +138,7 @@ common_prog(int nargs, char **args)
 	int status;
 	pid_t retval;
 
-	kprintf("TEMPPPP:before waitpid\n");
 	k_waitpid(proc->p_pid, &status, &retval);
-	kprintf("TEMPPPP:after waitpid\n");
 
 	(void) status;
 	(void) retval;

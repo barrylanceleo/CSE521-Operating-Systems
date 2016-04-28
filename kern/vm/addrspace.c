@@ -58,7 +58,28 @@ as_create(void) {
 		return NULL;
 	}
 	as->as_pagetable = array_create();
+	if(as->as_pagetable == NULL) {
+		kfree(as);
+		return NULL;
+	}
+	if (array_preallocate(as->as_pagetable, 1024) == ENOMEM) {
+		array_destroy(as->as_pagetable);
+		kfree(as);
+		return NULL;
+	}
 	as->as_regions = array_create();
+	if(as->as_regions == NULL) {
+		array_destroy(as->as_pagetable);
+		kfree(as);
+		return NULL;
+	}
+	if (array_preallocate(as->as_regions, 1024) == ENOMEM) {
+		array_destroy(as->as_regions);
+		array_destroy(as->as_pagetable);
+		kfree(as);
+		return NULL;
+	}
+	//kprintf("Newly created pagetable: %p, region: %p\n", as->as_pagetable, as->as_regions);
 	as->as_id = as_getNewAddrSpaceId();
 	as->as_heapBase = 0;
 	as->as_stackBase = 0;
@@ -84,6 +105,9 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 	for (i = 0; i < array_num(old->as_regions); i++) {
 		struct region* reg = array_get(old->as_regions, i);
 		struct region* newReg = (struct region*) kmalloc(sizeof(struct region));
+		if(newReg == NULL) {
+			return ENOMEM;
+		}
 		newReg->executable = reg->executable;
 		newReg->readable = reg->readable;
 		newReg->rg_size = reg->rg_size;
@@ -95,6 +119,9 @@ int as_copy(struct addrspace *old, struct addrspace **ret) {
 	for (i = 0; i < array_num(old->as_pagetable); i++) {
 		struct page* pg = array_get(old->as_pagetable, i);
 		struct page* newPg = page_create(newas, pg->pt_virtbase * PAGE_SIZE);
+		if(newPg == NULL) {
+			return ENOMEM;
+		}
 		memmove(PADDR_TO_KVADDR((void*) (newPg->pt_pagebase * PAGE_SIZE)),
 				PADDR_TO_KVADDR((void*) (pg->pt_pagebase * PAGE_SIZE)),
 				PAGE_SIZE);
@@ -234,10 +261,10 @@ struct page* page_create(struct addrspace* as, vaddr_t faultaddress) {
 		return NULL;
 	}
 	unsigned int idx;
-	if(as->as_pagetable->max - 1 == array_num(as->as_pagetable)) {
+	/*if(as->as_pagetable->max - 1 == array_num(as->as_pagetable)) {
 		int size = array_num(as->as_pagetable);
 		array_preallocate(as->as_pagetable, size*2);
-	}
+	}*/
 	array_add(as->as_pagetable, newpage, &idx);
 	return newpage;
 }
