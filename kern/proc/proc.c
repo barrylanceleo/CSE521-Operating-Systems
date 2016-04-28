@@ -93,6 +93,8 @@ proc_create(const char *name) {
 		kfree(proc);
 		return NULL;
 	}
+#if OPT_DUMBVM
+#else
 	if(array_preallocate(proc->p_filetable, 1024) == ENOMEM) {
 		array_destroy(proc->p_filetable);
 		spinlock_cleanup(&proc->p_lock);
@@ -100,7 +102,7 @@ proc_create(const char *name) {
 		kfree(proc);
 		return NULL;
 	}
-
+#endif
 	proc->p_waitcvlock = lock_create(name);
 	if (proc->p_waitcvlock == NULL) {
 		array_destroy(proc->p_filetable);

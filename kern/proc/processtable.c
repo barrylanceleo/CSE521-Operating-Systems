@@ -15,27 +15,31 @@ static struct process_table {
 } s_processtable;
 
 int init_processtable() {
-//	kprintf("TEMPPPP: PROCESSTABLE CREATE\n");
 	s_processtable.pt_processes = array_create();
 	if(s_processtable.pt_processes == NULL) {
 			return -1;
 	}
+#if OPT_DUMBVM
+#else
 	if(array_preallocate(s_processtable.pt_processes, 1024) == ENOMEM) {
 		array_destroy(s_processtable.pt_processes);
 		return -1;
 	}
+#endif
 	s_processtable.pt_pidcounter = 2;
 	s_processtable.pt_freepids = array_create();
 	if(s_processtable.pt_freepids == NULL) {
 		array_destroy(s_processtable.pt_processes);
 		return -1;
 	}
+#if OPT_DUMBVM
+#else
 	if(array_preallocate(s_processtable.pt_freepids, 1024) == ENOMEM) {
 		array_destroy(s_processtable.pt_freepids);
 		array_destroy(s_processtable.pt_processes);
 		return -1;
 	}
-	//kprintf("Newly created pt_processes: %p, pt_freepids: %p\n", s_processtable.pt_processes, s_processtable.pt_freepids);
+#endif
 
 	return 0;
 }
