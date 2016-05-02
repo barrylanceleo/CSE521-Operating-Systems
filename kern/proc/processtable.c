@@ -19,13 +19,10 @@ int init_processtable() {
 	if(s_processtable.pt_processes == NULL) {
 			return -1;
 	}
-#if OPT_DUMBVM
-#else
 	if(array_preallocate(s_processtable.pt_processes, 1024) == ENOMEM) {
 		array_destroy(s_processtable.pt_processes);
 		return -1;
 	}
-#endif
 	s_processtable.pt_pidcounter = 2;
 	s_processtable.pt_freepids = array_create();
 	if(s_processtable.pt_freepids == NULL) {
