@@ -123,12 +123,15 @@ boot(void)
 	/* Now do pseudo-devices. */
 	pseudoconfig();
 	kprintf("\n");
+
 	kheap_nextgeneration();
 
 	/* Late phase of initialization. */
 	kprintf_bootstrap();
 	thread_start_cpus();
 	test161_bootstrap();
+
+	swap_init();
 
 	/* Default bootfs - but ignore failure, in case emu0 doesn't exist */
 	vfs_setbootfs("emu0");

@@ -50,6 +50,20 @@ struct core_map_entry{
 	// may need to add more members for our page replacement algorithm
 };
 
+
+struct page {
+	vaddr_t pt_virtbase:20;
+	paddr_t pt_pagebase:20;
+	size_t pt_permission:3;
+	int pt_state:8;
+	int pt_valid:1;
+	int pt_reference:1;
+	//where is it ? stack or heap?
+};
+
+#define PT_STATE_MAPPED 0
+#define PT_STATE_SWAPPED 1
+
 #include <machine/vm.h>
 #include <array.h>
 
@@ -62,6 +76,8 @@ struct core_map_entry{
 /* Initialization function */
 void vm_bootstrap(void);
 
+void swap_init(void);
+
 /* Fault handling function called by trap code */
 int vm_fault(int faulttype, vaddr_t faultaddress);
 
@@ -72,6 +88,8 @@ void free_kpages(vaddr_t addr);
 /* Allocate/free pages in process address spaces */
 vaddr_t coremap_allocuserpages(unsigned npages, struct addrspace* as);
 void coremap_freeuserpages(paddr_t addr);
+
+void freePage(struct page* page);
 
 /*
  * Return amount of memory (in bytes) used by allocated coremap pages.  If

@@ -68,16 +68,6 @@ struct addrspace {
 #endif
 };
 
-struct page {
-	vaddr_t pt_virtbase:20;
-	paddr_t pt_pagebase:20;
-	size_t pt_permission:3;
-	int pt_state:1;
-	int pt_valid:1;
-	int pt_reference:1;
-	//where is it ? stack or heap?
-};
-
 struct region {
 	vaddr_t rg_vaddr;
 	size_t rg_size;

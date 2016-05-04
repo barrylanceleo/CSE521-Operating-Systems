@@ -146,7 +146,8 @@ void as_destroy(struct addrspace *as) {
 	int pageCount = array_num(as->as_pagetable);
 	for (i = 0; i < pageCount; i++) {
 		struct page* pg = array_get(as->as_pagetable, 0);
-		coremap_freeuserpages(pg->pt_pagebase * PAGE_SIZE);
+		// TODO move free page to a single method that handles swap as well as regular
+		freePage(pg);
 		kfree(pg);
 		array_remove(as->as_pagetable, 0);
 	}
@@ -256,6 +257,7 @@ struct page* page_create(struct addrspace* as, vaddr_t faultaddress) {
 	struct page* newpage = (struct page*) kmalloc(sizeof(struct page));
 	newpage->pt_virtbase = faultaddress / PAGE_SIZE;
 	newpage->pt_pagebase = coremap_allocuserpages(1, as) / PAGE_SIZE;
+	newpage->pt_state = PT_STATE_MAPPED;
 	if(newpage->pt_pagebase == 0) {
 		kfree(newpage);
 		return NULL;
