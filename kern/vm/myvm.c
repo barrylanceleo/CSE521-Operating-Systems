@@ -286,23 +286,29 @@ static void swaponepageout(struct page* pg, paddr_t phyaddr) {
 		return;
 	}
 
+	swap_map[swapPageindex].se_used = SWAP_PAGE_FREE;
+	kprintf("Swap out:\tswap= %x,\tpage=%x \n",swapPageindex,pg->pt_virtbase);
 	pg->pt_state = PT_STATE_MAPPED;
 	pg->pt_pagebase = phyaddr / PAGE_SIZE;
+
+
 }
 
 static void swaponepagein(int idx, struct addrspace* as) {
 	(void) as;
 	// 3. clear their tlb entries if present TODO
 	struct page* pg = findPageFromCoreMap(COREMAP(idx), idx);
+	int spl = splhigh();
 	int tlbpos = tlb_probe(pg->pt_pagebase * PAGE_SIZE, 0);
 	if (tlbpos >= 0) {
 		tlb_write(TLBHI_INVALID(tlbpos), TLBLO_INVALID(), tlbpos);
 	} else {
 		//kprintf("was not on tlb\n");
 	}
+	splx(spl);
 
 	int swapPageindex = getOneSwapPage();
-	//kprintf("Swap in page index = %x\n",swapPageindex);
+	kprintf("Swap in :\tswap= %x,\tpage=%x \n",swapPageindex,pg->pt_virtbase);
 	//kprintf("Swap in page Vaddr = %x\n", pg->pt_virtbase);
 	struct iovec iov;
 	struct uio kuio;
@@ -317,9 +323,9 @@ static void swaponepagein(int idx, struct addrspace* as) {
 	kuio.uio_rw = UIO_WRITE;
 	//kprintf("before write \n");
 	// 4. write them to disk
-	//spinlock_release(&coremap_lock);
+	spinlock_release(&coremap_lock);
 	int result = VOP_WRITE(swap_vnode, &kuio);
-	//spinlock_acquire(&coremap_lock);
+	spinlock_acquire(&coremap_lock);
 	if (result) {
 		// release lock on the vnode
 		panic("WRITE FAILED!\n");
@@ -331,7 +337,6 @@ static void swaponepagein(int idx, struct addrspace* as) {
 	pg->pt_pagebase = swap_map[swapPageindex].se_paddr;
 }
 
-int dummy = 0;
 static void swapin(int npages, struct addrspace* as) {
 	// 1. check if coremap lock is already held, else acquire it
 
@@ -340,7 +345,7 @@ static void swapin(int npages, struct addrspace* as) {
 	}
 	//kprintf("HERerE1\n");
 	lock_acquire(swap_lock);
-	spinlock_release(&coremap_lock);
+	//spinlock_release(&coremap_lock);
 	// 2. select a bunch of non kernel pages.
 	//kprintf("Swap in of %d pages\n", npages);
 	unsigned int i;
@@ -348,7 +353,20 @@ static void swapin(int npages, struct addrspace* as) {
 	for (i = 0; i < page_count; i++) {
 		if (cm_isEntryUsed(
 				COREMAP_SWAP(
-						i)) && cm_getEntryAddrspaceIdent(COREMAP_SWAP(i)) != NULL) {
+						i)) && cm_getEntryAddrspaceIdent(COREMAP_SWAP(i)) != NULL ) {
+			struct page* pg = NULL;
+			if (cm_getEntryAddrspaceIdent(COREMAP_SWAP(i)) == as) {
+				pg = findPageFromCoreMap(COREMAP_SWAP(i),
+						SWAP_IDX(i + swap_prev_write_idx));
+				int spl = splhigh();
+				int tlbpos = tlb_probe(pg->pt_virtbase * PAGE_SIZE, 0);
+				if (tlbpos >= 0) {
+					splx(spl);
+					//kprintf("tlb hit at %x %d\n",pg->pt_pagebase, tlbpos);
+					continue;
+				}
+				splx(spl);
+			}
 			int j = 0;
 			int flag = 1;
 			for (j = 0; j < npages; j++) {
@@ -377,19 +395,21 @@ static void swapin(int npages, struct addrspace* as) {
 						cm_setEntryAddrspaceIdent(COREMAP_SWAP(i + j), NULL);
 						coremap_pages_free++;
 						swap_prev_write_idx = SWAP_IDX(i + j+ swap_prev_write_idx) + 1;
-						//kprintf("new idx = %d\n", swap_prev_write_idx);
+						/*if(pg != NULL) {
+							kprintf("swapped in page was = %x\n", pg->pt_virtbase);
+						}*/
 					} else {
 						kprintf("How did this get approved?\n");
 					}
 				}
-				spinlock_acquire(&coremap_lock);
+				//spinlock_acquire(&coremap_lock);
 				lock_release(swap_lock);
 				return;
 			}
 		}
 	}
 	panic("Out of pages to swap out!\n");
-	spinlock_acquire(&coremap_lock);
+	//spinlock_acquire(&coremap_lock);
 	lock_release(swap_lock);
 
 	// 2.5 Maintain a index of last page that was swapped in so that you swap in the one after that
@@ -401,8 +421,6 @@ static void swapout(struct addrspace*as, struct page* pg) {
 	if (swap_state == SWAP_STATE_NOSWAP) {
 		panic("Attempting to swap out when no swap disk is found!\n");
 	}
-	// 1. check if coremap lock is already held, else acquire it
-
 	// 2. allocate a page in coremap for this
 	paddr_t phaddress = coremap_allocuserpages(1, as);
 	if (phaddress == 0) {
@@ -410,17 +428,10 @@ static void swapout(struct addrspace*as, struct page* pg) {
 		return;
 	}
 
-	int swapIdx = pg->pt_pagebase;
-
 	// 3. copy content from disk to the new page
 	// 4. update page table entry
-	swaponepageout(pg, phaddress);
-
 	// 5. free the swap page
-	swap_map[swapIdx].se_used = SWAP_PAGE_FREE;
-	// 6. do a tlb random write
-
-	// 7. free lock if you had acquired it in this method
+	swaponepageout(pg, phaddress);
 
 }
 
@@ -557,7 +568,7 @@ void coremap_freeuserpages(paddr_t addr) {
 		}
 	}
 	spinlock_release(&coremap_lock);
-	panic("free_pages() failed, did not find the given vaddr");
+	panic("free_pages() failed, did not find the given vaddr\n");
 	(void) swapfree(0);
 	// to remove the function not used erro
 	(void) cm_getEntryAddrspaceIdent((struct core_map_entry *) (coremap));
@@ -571,6 +582,12 @@ void free_kpages(vaddr_t addr) {
 void freePage(struct page* page) {
 	if(page->pt_state == PT_STATE_MAPPED) {
 		coremap_freeuserpages(page->pt_pagebase * PAGE_SIZE);
+		int spl = splhigh();
+		int tlbpos = tlb_probe(page->pt_pagebase * PAGE_SIZE, 0);
+		if (tlbpos >= 0) {
+			tlb_write(TLBHI_INVALID(tlbpos), TLBLO_INVALID(), tlbpos);
+		}
+		splx(spl);
 	} else if(page->pt_state == PT_STATE_MAPPED) {
 		swapfree(page);
 	}
@@ -622,14 +639,14 @@ static void removePagesWithinRegion(struct addrspace* as, struct region* reg) {
 	}
 }
 
-static void invalidateTlb() {
+/*static void invalidateTlb() {
 	int spl = splhigh();
 	int i;
 	for (i = 0; i < NUM_TLB; i++) {
 		tlb_write(TLBHI_INVALID(i), TLBLO_INVALID(), i);
 	}
 	splx(spl);
-}
+}*/
 
 static int reduceHeapSize(userptr_t amount, int32_t* retval,
 		struct addrspace* as) {
@@ -664,7 +681,6 @@ static int reduceHeapSize(userptr_t amount, int32_t* retval,
 			removePagesWithinRegion(as, &tempReg);
 		}
 	}
-	invalidateTlb();
 	as->as_addrPtr = newStart;
 	*retval = oldStart;
 	//kprintf("retval is = %x\n", as->as_addrPtr);
