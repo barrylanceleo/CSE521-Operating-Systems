@@ -58,6 +58,7 @@ int
 main(void)
 {
     int i, j, k, r;
+    printf("here0\n");
 
     for (i = 0; i < Dim; i++) {		/* first initialize the matrices */
 		for (j = 0; j < Dim; j++) {
@@ -67,7 +68,7 @@ main(void)
 			C[i][j] = 0;
 		}
 	}
-	nprintf("\n");
+	printf("here1\n");
 
     for (i = 0; i < Dim; i++) {		/* then multiply them together */
 		for (j = 0; j < Dim; j++) {
@@ -77,7 +78,7 @@ main(void)
 			}
 		}
 	}
-	nprintf("\n");
+	printf("here2\n");
 
     for (i = 0; i < Dim; i++) {
 		for (j = 0; j < Dim; j++) {
@@ -87,14 +88,14 @@ main(void)
 			}
 		}
 	}
-	nprintf("\n");
+	printf("here3\n");
 
     r = 0;
     for (i = 0; i < Dim; i++)
 	    r += C[i][i];
 
-    nprintf("matmult finished.\n");
-    nprintf("answer is: %d (should be %d)\n", r, RIGHT);
+    printf("matmult finished.\n");
+    printf("answer is: %d (should be %d)\n", r, RIGHT);
     if (r != RIGHT) {
 	    nprintf("FAILED\n");
 		success(TEST161_FAIL, SECRET, "/testbin/matmult");

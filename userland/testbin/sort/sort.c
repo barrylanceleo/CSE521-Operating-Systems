@@ -178,6 +178,9 @@ check(void)
 	int i;
 
 	printf("\nChecking...");
+	/*for (i = 0; i < SIZE; i+=1024) {
+			printf("A[%d] = %d\n",i , A[i]);
+	}*/
 	for (i=0; i<SIZE-1; i++) {
 		TEST161_LPROGRESS_N(i, PROGRESS_INTERVAL);
 		if (A[i] > A[i+1]) {

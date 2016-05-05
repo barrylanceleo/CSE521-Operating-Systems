@@ -237,14 +237,14 @@ void swap_init() {
 
 int swap_prev_write_idx = 0;
 
-#define SWAP_IDX(idx) (((int)idx >= (int)page_count ? (int)idx - (int)page_count : (int)idx))
+#define SWAP_IDX(idx) ((int)idx % (int)page_count)
 #define COREMAP_SWAP(i) COREMAP(SWAP_IDX(i + swap_prev_write_idx))
 
 static int getOneSwapPage() {
 	int i = 0;
 	for (i = 0; i < swap_page_count; i++) {
 		if (swap_map[i].se_used == SWAP_PAGE_FREE) {
-			swap_map[i].se_used = 1;
+			swap_map[i].se_used = SWAP_PAGE_USED;
 			return i;
 		}
 	}
@@ -297,6 +297,7 @@ static void swaponepageout(struct page* pg, paddr_t phyaddr) {
 static void swaponepagein(int idx, struct addrspace* as) {
 	(void) as;
 	// 3. clear their tlb entries if present TODO
+	cm_setEntryDirtyState(COREMAP(idx),true);
 	struct page* pg = findPageFromCoreMap(COREMAP(idx), idx);
 	int spl = splhigh();
 	int tlbpos = tlb_probe(pg->pt_pagebase * PAGE_SIZE, 0);
@@ -331,6 +332,7 @@ static void swaponepagein(int idx, struct addrspace* as) {
 		panic("WRITE FAILED!\n");
 		return;
 	}
+	cm_setEntryDirtyState(COREMAP(idx),false);
 	//kprintf("write complete\n");
 
 	pg->pt_state = PT_STATE_SWAPPED;
@@ -343,60 +345,55 @@ static void swapin(int npages, struct addrspace* as) {
 	if (swap_state == SWAP_STATE_NOSWAP) {
 		panic("Attempting to swap in when no swap disk is found!\n");
 	}
-	//kprintf("HERerE1\n");
 	lock_acquire(swap_lock);
-	//spinlock_release(&coremap_lock);
 	// 2. select a bunch of non kernel pages.
-	//kprintf("Swap in of %d pages\n", npages);
 	unsigned int i;
 
 	for (i = 0; i < page_count; i++) {
-		if (cm_isEntryUsed(
-				COREMAP_SWAP(
-						i)) && cm_getEntryAddrspaceIdent(COREMAP_SWAP(i)) != NULL ) {
+		int i_idx = SWAP_IDX(i + swap_prev_write_idx);
+		if (cm_isEntryUsed(COREMAP(i_idx)) && cm_getEntryAddrspaceIdent(COREMAP(i_idx)) != NULL) {
 			struct page* pg = NULL;
-			if (cm_getEntryAddrspaceIdent(COREMAP_SWAP(i)) == as) {
-				pg = findPageFromCoreMap(COREMAP_SWAP(i),
-						SWAP_IDX(i + swap_prev_write_idx));
+			if (cm_getEntryAddrspaceIdent(COREMAP(i_idx)) == as) {
+				pg = findPageFromCoreMap(COREMAP(i_idx), i_idx);
 				int spl = splhigh();
 				int tlbpos = tlb_probe(pg->pt_virtbase * PAGE_SIZE, 0);
+				splx(spl);
 				if (tlbpos >= 0) {
-					splx(spl);
 					//kprintf("tlb hit at %x %d\n",pg->pt_pagebase, tlbpos);
 					continue;
 				}
-				splx(spl);
 			}
 			int j = 0;
 			int flag = 1;
 			for (j = 0; j < npages; j++) {
-				if (i + j >= page_count) {
+				int j_idx = SWAP_IDX(i + j + swap_prev_write_idx);
+				if (j_idx >= (int)page_count) {
 					kprintf("page count greater than i+j\n");
 					flag = 0;
 					break;
 				}
 				if (cm_isEntryUsed(
-						COREMAP_SWAP(
-								i + j)) && cm_getEntryAddrspaceIdent(COREMAP_SWAP(i + j)) == NULL) {
+						COREMAP(j_idx)) && cm_getEntryAddrspaceIdent(COREMAP(j_idx)) == NULL) {
 					kprintf("page used by kernel\n");
 					flag = 0;
 					break;
 				}
 			}
 			if (flag == 1) {
-				for (j = 0; j + i < page_count && j < npages; j++) {
-					if (cm_isEntryUsed(
-							COREMAP_SWAP(
-									i + j)) && cm_getEntryAddrspaceIdent(COREMAP_SWAP(i + j)) != NULL) {
-						swaponepagein(SWAP_IDX(i + j + swap_prev_write_idx), as);
-						cm_setEntryUseState(COREMAP_SWAP(i + j), false);
-						cm_setEntryDirtyState(COREMAP_SWAP(i + j), false);
+				for (j = 0; j < npages; j++) {
+					int j_idx = SWAP_IDX(i + j + swap_prev_write_idx);
+					if (cm_isEntryUsed(COREMAP(j_idx)) && cm_getEntryAddrspaceIdent(COREMAP(j_idx)) != NULL) {
+						swaponepagein(j_idx, as);
+						cm_setEntryUseState(COREMAP(j_idx), false);
+						cm_setEntryDirtyState(COREMAP(j_idx), false);
 						// let the address space identifier be NULL initially
-						cm_setEntryAddrspaceIdent(COREMAP_SWAP(i + j), NULL);
+						cm_setEntryAddrspaceIdent(COREMAP(j_idx), NULL);
 						coremap_pages_free++;
-						swap_prev_write_idx = SWAP_IDX(i + j+ swap_prev_write_idx) + 1;
+						swap_prev_write_idx = j_idx + 1;
 						/*if(pg != NULL) {
 							kprintf("swapped in page was = %x\n", pg->pt_virtbase);
+						} else {
+							kprintf("page was nill\n");
 						}*/
 					} else {
 						kprintf("How did this get approved?\n");
@@ -439,11 +436,7 @@ static void swapfree(struct page* pg) {
 	if (swap_state == SWAP_STATE_NOSWAP) {
 		panic("Attempting to swap out when no swap disk is found!\n");
 	}
-	//kprintf("HERRE\n");
 	lock_acquire(swap_lock);
-	if (swap_state == SWAP_STATE_NOSWAP) {
-		panic("Attempting to swap free when no swap disk is found!\n");
-	}
 	swap_map[pg->pt_pagebase].se_used = SWAP_PAGE_FREE;
 	// 1. check if coremap lock is already held, else acquire it
 	// 2. free the swap page. // TODO create a common method for freeing pages
@@ -516,7 +509,7 @@ vaddr_t coremap_allocuserpages(unsigned npages, struct addrspace * as) {
 				for (; k < j; k++) {
 					// update the state
 					cm_setEntryUseState(COREMAP(k), true);
-					cm_setEntryDirtyState(COREMAP(k), true);
+					//cm_setEntryDirtyState(COREMAP(k), true);
 					// let the address space identifier be NULL for now
 					cm_setEntryAddrspaceIdent(COREMAP(k), as);
 					// chunk start would be the first page in the chunk
@@ -557,7 +550,7 @@ void coremap_freeuserpages(paddr_t addr) {
 					&& cm_getEntryChunkStart(COREMAP(j)) == chunk_start) {
 				// update the state
 				cm_setEntryUseState(COREMAP(j), false);
-				cm_setEntryDirtyState(COREMAP(j), false);
+				//cm_setEntryDirtyState(COREMAP(j), false);
 				// let the address space identifier be NULL initially
 				cm_setEntryAddrspaceIdent(COREMAP(j), NULL);
 				coremap_pages_free++;
